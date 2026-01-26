@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\Admin2FAController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -33,6 +34,13 @@ Route::middleware('guest')->group(function () {
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
         ->name('password.store');
+
+    Route::get('admin/2fa', [Admin2FAController::class, 'show'])
+        ->name('admin.2fa.show');
+
+    Route::post('admin/2fa', [Admin2FAController::class, 'verify'])
+        ->middleware('throttle:5,1')
+        ->name('admin.2fa.verify');
 });
 
 Route::middleware('auth')->group(function () {

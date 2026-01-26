@@ -13,6 +13,8 @@ use App\Http\Controllers\{
     ProfileController,
     FeedbackReplyController
 };
+use App\Http\Controllers\Admin\AdminController;
+use App\Http\Middleware\IsAdmin;
 use App\Services\SmsService;
 
 /*
@@ -115,6 +117,37 @@ Route::middleware(['auth', 'verified'])->group(function () {
     */
     Route::post('/feedback-requests', [FeedbackRequestController::class, 'store'])
         ->name('feedback-requests.store');
+});
+
+/*
+||--------------------------------------------------------------------------
+|| Admin routes (créateurs de la plateforme)
+||--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth', 'verified', IsAdmin::class])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/dashboard', [AdminController::class, 'dashboard'])
+        ->name('dashboard');
+
+    // Admin sections
+    Route::get('/companies', [AdminController::class, 'companies'])
+        ->name('companies');
+    Route::get('/users', [AdminController::class, 'users'])
+        ->name('users');
+    Route::get('/feedbacks', [AdminController::class, 'feedbacks'])
+        ->name('feedbacks');
+    Route::get('/requests', [AdminController::class, 'requests'])
+        ->name('requests');
+    Route::get('/replies', [AdminController::class, 'replies'])
+        ->name('replies');
+    Route::get('/analytics', [AdminController::class, 'analytics'])
+        ->name('analytics');
+    Route::get('/subscriptions', [AdminController::class, 'subscriptions'])
+        ->name('subscriptions');
+    Route::get('/channels', [AdminController::class, 'channels'])
+        ->name('channels');
+    Route::get('/settings', [AdminController::class, 'settings'])
+        ->name('settings');
 });
 
 
