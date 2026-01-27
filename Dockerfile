@@ -33,7 +33,6 @@ RUN docker-php-ext-install \
     pdo \
     pdo_pgsql \
     mbstring \
-    json \
     curl \
     bcmath \
     ctype
