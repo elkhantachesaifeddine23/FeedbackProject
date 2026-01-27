@@ -13,6 +13,7 @@ export default function AuthenticatedLayout({ user, header, children }) {
         { name: 'Ajouter un client', href: 'customers.create', icon: UserPlusIcon, current: route().current('customers.create'), enabled: true },
         { name: 'Entreprise', href: 'company.edit', icon: BuildingIcon, current: route().current('company.*'), enabled: true },
         { name: 'Feedbacks', href: 'feedbacks.index', icon: ChatIcon, current: route().current('feedbacks.*'), enabled: true },
+        { name: 'Design Feedback', href: 'feedback.design.edit', icon: PaletteIcon, current: route().current('feedback.design.*'), enabled: true },
         { name: 'Analytics', href: '#', icon: ChartIcon, current: false, enabled: false },
         { name: 'Paramètres', href: '#', icon: SettingsIcon, current: false, enabled: false },
     ];
@@ -275,6 +276,14 @@ function BuildingIcon({ className }) {
     return (
         <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+    );
+}
+
+function PaletteIcon({ className }) {
+    return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
         </svg>
     );
 }

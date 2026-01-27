@@ -9,6 +9,7 @@ use App\Http\Controllers\{
     DashboardController,
     CustomerController,
     FeedbackController,
+    FeedbackDesignController,
     FeedbackRequestController,
     ProfileController,
     FeedbackReplyController,
@@ -59,6 +60,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/feedbacks/{id}', [FeedbackController::class, 'adminShow'])
         ->name('feedback.adminShow');
+
+    // Configuration du design de la page feedback
+    Route::get('/feedback-design', [FeedbackDesignController::class, 'edit'])
+        ->name('feedback.design.edit');
+    
+    Route::post('/feedback-design', [FeedbackDesignController::class, 'update'])
+        ->name('feedback.design.update');
 
     // Liste des réponses pour un feedback
     Route::get('/feedback/{id}/replies', [FeedbackReplyController::class, 'index'])

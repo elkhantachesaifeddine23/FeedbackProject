@@ -15,6 +15,12 @@ class Company extends Model
         'sector',
         'google_place_id',
         'google_review_url',
+        'logo_url',
+        'design_settings',
+    ];
+
+    protected $casts = [
+        'design_settings' => 'array',
     ];
 
     public function user()

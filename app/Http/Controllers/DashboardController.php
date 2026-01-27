@@ -115,6 +115,7 @@ $stats['ratings'] = collect([1, 2, 3, 4, 5])->mapWithKeys(function ($star) use (
 
         $payload = $analysisFeedbacks->map(function ($f) {
             return [
+                'id' => $f->id, // 🔴 IMPORTANT pour générer le hash
                 'rating' => $f->rating,
                 'comment' => $f->comment,
                 'customer' => $f->feedbackRequest?->customer?->name,
@@ -122,7 +123,21 @@ $stats['ratings'] = collect([1, 2, 3, 4, 5])->mapWithKeys(function ($star) use (
             ];
         })->values()->all();
 
-        $analysis = $radarService->analyze($payload, $sentiment);
+        // ✅ Utiliser le cache intelligent
+        $analysis = $radarService->analyzeWithCache(
+            companyId: $company->id,
+            feedbacks: $payload,
+            sentimentStats: $sentiment,
+            feedbacksWithComments: $analysisFeedbacks->count()
+        );
+
+        // Déterminer le timestamp à afficher
+        $lastUpdated = $analysis['cached_at'] ?? now()->format('Y-m-d H:i');
+        
+        // Ajouter un indicateur de cache
+        if ($analysis['cached']) {
+            $analysis['cacheInfo'] = "Analyse mise en cache depuis " . $analysis['cached_at'];
+        }
 
         return Inertia::render('Dashboard/RadarIA', [
             'stats' => [
@@ -134,7 +149,7 @@ $stats['ratings'] = collect([1, 2, 3, 4, 5])->mapWithKeys(function ($star) use (
                 'negativeRate' => $total > 0 ? round(($negative / $total) * 100, 1) : 0,
             ],
             'analysis' => $analysis,
-            'lastUpdated' => now()->format('Y-m-d H:i'),
+            'lastUpdated' => $lastUpdated,
         ]);
     }
 }

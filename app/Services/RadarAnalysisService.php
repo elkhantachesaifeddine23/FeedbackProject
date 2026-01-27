@@ -2,10 +2,80 @@
 
 namespace App\Services;
 
+use App\Models\RadarAnalysis;
 use Illuminate\Support\Facades\Http;
 
 class RadarAnalysisService
 {
+	/**
+	 * Analyser les feedbacks avec cache intelligent
+	 * 
+	 * @param int $companyId - ID de la compagnie
+	 * @param array $feedbacks - Liste des feedbacks à analyser
+	 * @param array $sentimentStats - Stats de sentiment
+	 * @param int $feedbacksWithComments - Nombre de feedbacks avec commentaires
+	 * @return array - Analyse (du cache ou nouvellement générée)
+	 */
+	public function analyzeWithCache(int $companyId, array $feedbacks, array $sentimentStats = [], int $feedbacksWithComments = 0): array
+	{
+		if (empty($feedbacks)) {
+			return $this->fallbackAnalysis($feedbacks, $sentimentStats, 'Aucun feedback à analyser pour le moment.');
+		}
+
+		// 1️⃣ Générer le hash des feedbacks actuels
+		$feedbackHash = $this->generateFeedbackHash($feedbacks);
+
+		// 2️⃣ Chercher une analyse existante avec le même hash
+		$cachedAnalysis = RadarAnalysis::where('company_id', $companyId)
+			->where('feedback_hash', $feedbackHash)
+			->latest('analyzed_at')
+			->first();
+
+		// 3️⃣ Si trouvée, retourner le cache avec metadata
+		if ($cachedAnalysis) {
+			return array_merge(
+				$cachedAnalysis->analysis_data,
+				[
+					'cached' => true,
+					'cached_at' => $cachedAnalysis->analyzed_at->format('Y-m-d H:i'),
+					'feedbacks_cached_count' => $cachedAnalysis->feedbacks_count,
+				]
+			);
+		}
+
+		// 4️⃣ Sinon, générer une nouvelle analyse
+		$analysis = $this->analyze($feedbacks, $sentimentStats);
+
+		// 5️⃣ Sauvegarder l'analyse en cache
+		RadarAnalysis::create([
+			'company_id' => $companyId,
+			'feedback_hash' => $feedbackHash,
+			'feedbacks_count' => count($feedbacks),
+			'feedbacks_with_comments' => $feedbacksWithComments,
+			'analysis_data' => $analysis,
+			'analyzed_at' => now(),
+		]);
+
+		return array_merge($analysis, ['cached' => false]);
+	}
+
+	/**
+	 * Générer un hash SHA256 des feedback IDs
+	 * Ceci détecte si les feedbacks ont changé
+	 */
+	private function generateFeedbackHash(array $feedbacks): string
+	{
+		$ids = collect($feedbacks)
+			->pluck('id')
+			->sort()
+			->implode(',');
+
+		return hash('sha256', $ids);
+	}
+
+	/**
+	 * Analyser sans cache (appel direct API)
+	 */
 	public function analyze(array $feedbacks, array $sentimentStats = []): array
 	{
 		if (empty($feedbacks)) {

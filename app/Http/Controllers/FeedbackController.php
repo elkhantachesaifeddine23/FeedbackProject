@@ -59,10 +59,29 @@ class FeedbackController extends Controller
             ]);
         }
 
+        // Valeurs par défaut si aucun design n'est configuré
+        $defaultSettings = [
+            'primary_color' => '#3b82f6',
+            'secondary_color' => '#1e40af',
+            'star_style' => 'classic',
+            'star_color' => '#fbbf24',
+            'font_family' => 'Inter',
+            'background_color' => '#f9fafb',
+            'card_background' => '#ffffff',
+            'text_color' => '#111827',
+            'button_style' => 'rounded',
+            'show_logo' => true,
+            'custom_message' => 'Votre avis compte pour nous!',
+        ];
+
         return Inertia::render('Feedback/Create', [
             'token'   => $token,
             'postUrl' => route('feedback.store', $token),
-            'company' => $feedbackRequest->company->name,
+            'company' => [
+                'name' => $feedbackRequest->company->name,
+                'logo_url' => $feedbackRequest->company->logo_url,
+                'design_settings' => $feedbackRequest->company->design_settings ?? $defaultSettings,
+            ],
             'customer'=> optional($feedbackRequest->customer)->name,
         ]);
     }
