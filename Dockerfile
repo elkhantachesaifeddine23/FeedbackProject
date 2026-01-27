@@ -26,7 +26,9 @@ RUN apk add --no-cache \
     supervisor \
     bash \
     libpq-dev \
-    oniguruma-dev
+    oniguruma-dev \
+    build-base \
+    autoconf
 
 # Install PHP extensions
 RUN docker-php-ext-install \
@@ -34,8 +36,7 @@ RUN docker-php-ext-install \
     pdo_pgsql \
     mbstring \
     curl \
-    bcmath \
-    ctype
+    bcmath
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
