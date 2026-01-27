@@ -35,7 +35,6 @@ RUN docker-php-ext-install \
     pdo \
     pdo_pgsql \
     mbstring \
-    curl \
     bcmath
 
 # Install Composer
