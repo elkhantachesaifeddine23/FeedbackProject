@@ -49,21 +49,22 @@ COPY --from=assets-builder /app/public/build ./public/build
 # Install PHP dependencies
 RUN composer install --no-dev --no-interaction --optimize-autoloader
 
-# Setup permissions
-RUN chown -R www-data:www-data /app && \
-    chmod -R 755 /app && \
-    chmod -R 775 storage bootstrap/cache
-
 # Copy config files
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/default.conf /etc/nginx/conf.d/default.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/entrypoint.sh /app/docker/entrypoint.sh
 
-RUN chmod +x /app/docker/entrypoint.sh
+# Setup permissions
+RUN chown -R www-data:www-data /app && \
+    chmod -R 755 /app && \
+    chmod -R 775 storage bootstrap/cache && \
+    chmod +x /app/docker/entrypoint.sh && \
+    chmod 666 /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
-USER www-data
+# Rester en root pour permettre les modifications de configuration au démarrage
+# USER www-data
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]

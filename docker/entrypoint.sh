@@ -43,7 +43,8 @@ if [ ! -f /app/.env ]; then
 fi
 
 if [ -n "$PORT" ] && [ -f /etc/nginx/conf.d/default.conf ]; then
-  sed -i "s/listen 80 default_server;/listen ${PORT} default_server;/" /etc/nginx/conf.d/default.conf
+    echo "Configuration du port ${PORT} pour Render..."
+    sed -i "s/listen 80 default_server;/listen ${PORT} default_server;/" /etc/nginx/conf.d/default.conf
 fi
 
 if ! grep -q '^APP_KEY=' /app/.env; then
