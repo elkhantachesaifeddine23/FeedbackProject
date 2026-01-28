@@ -65,8 +65,9 @@ class Admin2FAController extends Controller
 		$request->session()->forget('admin_2fa_pending');
 
 		Auth::login($user, $pending['remember'] ?? false);
-		$request->session()->regenerate();
-
+		$request->session()->regenerate();	
+	// Marquer que 2FA est passé (au cas où middleware Admin2FA est utilisé)
+	$request->session()->put('two_factor_passed', true);
 		return redirect()->intended(route('admin.dashboard', absolute: false));
 	}
 
