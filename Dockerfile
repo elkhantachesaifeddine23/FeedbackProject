@@ -37,9 +37,6 @@ RUN docker-php-ext-install \
     mbstring \
     bcmath
 
-# Configure PHP-FPM to listen on TCP (matching Nginx)
-RUN sed -i 's|^listen = .*|listen = 127.0.0.1:9000|' /usr/local/etc/php-fpm.d/www.conf
-
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
@@ -56,6 +53,7 @@ RUN composer install --no-dev --no-interaction --optimize-autoloader
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/default.conf /etc/nginx/conf.d/default.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/php-fpm.conf /usr/local/etc/php-fpm.d/zz-app.conf
 COPY docker/entrypoint.sh /app/docker/entrypoint.sh
 
 # Setup permissions
