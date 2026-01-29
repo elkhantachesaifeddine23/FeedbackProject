@@ -28,37 +28,6 @@ class Company extends Model
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * All users in this company
-     */
-    public function users()
-    {
-        return $this->belongsToMany(User::class, 'company_user')
-            ->withPivot('role')
-            ->withTimestamps();
-    }
-
-    /**
-     * Admin users of this company
-     */
-    public function admins()
-    {
-        return $this->belongsToMany(User::class, 'company_user')
-            ->where('role', 'admin')
-            ->withPivot('role')
-            ->withTimestamps();
-    }
-
-    /**
-     * Get user role in this company
-     */
-    public function getUserRole(User $user): ?string
-    {
-        return $this->users()
-            ->where('user_id', $user->id)
-            ->first()?->pivot?->role;
-    }
-
     public function customers()
     {
         return $this->hasMany(Customer::class);
@@ -73,5 +42,14 @@ class Company extends Model
     {
         return $this->hasOne(Subscription::class);
     }
-}
 
+    public function feedbackReplies()
+    {
+        return $this->hasMany(FeedbackReply::class);
+    }
+
+    public function responsePolicy()
+    {
+        return $this->hasOne(CompanyResponsePolicy::class);
+    }
+}

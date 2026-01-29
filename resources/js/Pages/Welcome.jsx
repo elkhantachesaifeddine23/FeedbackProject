@@ -161,11 +161,74 @@ export default function Welcome({ auth }) {
                                 <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
                                 <div className="w-3 h-3 rounded-full bg-green-400"></div>
                             </div>
-                            <div className="mt-12 aspect-video bg-gradient-to-br from-slate-900/50 to-luminea-900/50 rounded-xl border border-white/10 flex items-center justify-center">
-                                <div className="text-center">
-                                    <div className="text-6xl mb-4">📊</div>
-                                    <p className="text-luminea-200 font-semibold">Dashboard Luminea</p>
-                                    <p className="text-luminea-400 text-sm mt-1">Analytics • IA • Multi-canal</p>
+                            <div className="mt-12 aspect-video bg-gradient-to-br from-slate-900/50 to-luminea-900/50 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden">
+                                {/* Stats Grid */}
+                                <div className="w-full h-full p-8">
+                                    <div className="grid grid-cols-2 gap-6 h-full">
+                                        {/* Stat 1 - Entreprises */}
+                                        <div className="bg-gradient-to-br from-luminea-500/20 to-purple-500/20 backdrop-blur-sm rounded-2xl p-6 border border-luminea-400/30 flex flex-col justify-between group hover:scale-105 transition-transform duration-300">
+                                            <div className="flex items-start justify-between">
+                                                <div className="bg-luminea-500/30 p-3 rounded-xl">
+                                                    <svg className="w-8 h-8 text-luminea-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                                    </svg>
+                                                </div>
+                                                <span className="text-xs text-green-400 bg-green-400/20 px-2 py-1 rounded-full">+12%</span>
+                                            </div>
+                                            <div className="mt-4">
+                                                <div className="text-4xl font-black text-white mb-1">500+</div>
+                                                <div className="text-sm text-luminea-300 font-medium">Entreprises actives</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Stat 2 - Feedbacks */}
+                                        <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-sm rounded-2xl p-6 border border-purple-400/30 flex flex-col justify-between group hover:scale-105 transition-transform duration-300">
+                                            <div className="flex items-start justify-between">
+                                                <div className="bg-purple-500/30 p-3 rounded-xl">
+                                                    <svg className="w-8 h-8 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                                    </svg>
+                                                </div>
+                                                <span className="text-xs text-green-400 bg-green-400/20 px-2 py-1 rounded-full">+24%</span>
+                                            </div>
+                                            <div className="mt-4">
+                                                <div className="text-4xl font-black text-white mb-1">50K+</div>
+                                                <div className="text-sm text-purple-300 font-medium">Feedbacks collectés</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Stat 3 - Taux de satisfaction */}
+                                        <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 backdrop-blur-sm rounded-2xl p-6 border border-blue-400/30 flex flex-col justify-between group hover:scale-105 transition-transform duration-300">
+                                            <div className="flex items-start justify-between">
+                                                <div className="bg-blue-500/30 p-3 rounded-xl">
+                                                    <svg className="w-8 h-8 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                </div>
+                                                <span className="text-xs text-green-400 bg-green-400/20 px-2 py-1 rounded-full">+5%</span>
+                                            </div>
+                                            <div className="mt-4">
+                                                <div className="text-4xl font-black text-white mb-1">96%</div>
+                                                <div className="text-sm text-blue-300 font-medium">Taux de satisfaction</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Stat 4 - Temps de réponse IA */}
+                                        <div className="bg-gradient-to-br from-emerald-500/20 to-teal-500/20 backdrop-blur-sm rounded-2xl p-6 border border-emerald-400/30 flex flex-col justify-between group hover:scale-105 transition-transform duration-300">
+                                            <div className="flex items-start justify-between">
+                                                <div className="bg-emerald-500/30 p-3 rounded-xl">
+                                                    <svg className="w-8 h-8 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                    </svg>
+                                                </div>
+                                                <span className="text-xs text-emerald-400 bg-emerald-400/20 px-2 py-1 rounded-full">⚡ Rapide</span>
+                                            </div>
+                                            <div className="mt-4">
+                                                <div className="text-4xl font-black text-white mb-1">&lt;2s</div>
+                                                <div className="text-sm text-emerald-300 font-medium">Réponse IA moyenne</div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

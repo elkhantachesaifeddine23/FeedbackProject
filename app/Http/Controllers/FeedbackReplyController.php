@@ -59,9 +59,9 @@ public function store(Request $request, int $id)
     // 3️⃣ Génération IA
     public function generateAIReply(int $id)
     {
-        $feedback = Feedback::findOrFail($id);
+        $feedback = Feedback::with('feedbackRequest')->findOrFail($id);
 
-        // 🔹 On peut utiliser un Job pour ne pas bloquer l’interface
+        // 🔹 Job asynchrone pour la réponse IA multilingue
         GenerateAIReplyJob::dispatch($feedback);
 
         return back()->with('success', 'La réponse IA est en cours de génération...');
@@ -73,21 +73,25 @@ public function store(Request $request, int $id)
         $feedback = Feedback::with('feedbackRequest.customer', 'feedbackRequest.company')->findOrFail($id);
 
         $customerName = $feedback->feedbackRequest?->customer?->name ?? null;
-        $companyName = $feedback->feedbackRequest?->company?->name ?? null;
-        $channel = $feedback->feedbackRequest?->channel ?? null;
+        $feedbackRequest = $feedback->feedbackRequest;
 
-        $contextParts = [];
-        if ($companyName) $contextParts[] = "Société: $companyName";
-        if ($channel) $contextParts[] = "Canal: $channel";
-        $context = count($contextParts) ? implode(' | ', $contextParts) : null;
+        $detectedLanguage = $feedbackRequest?->detected_language;
+        if (! $detectedLanguage && $feedback->comment) {
+            $detectedLanguage = $aiService->detectLanguage($feedback->comment);
+        }
 
-        $content = $aiService->generate(
-            $feedback->comment ?? '',
-            $feedback->rating,
-            $customerName,
-            $context
+        $replyData = $aiService->generateMultilingual(
+            feedbackContent: $feedback->comment ?? '',
+            rating: $feedback->rating,
+            customerName: $customerName,
+            detectedLanguage: $detectedLanguage,
+            tone: $feedbackRequest?->company?->responsePolicy?->tone ?? 'professional',
+            customInstructions: $feedbackRequest?->company?->responsePolicy?->custom_instructions
         );
 
-        return response()->json(['content' => $content]);
+        return response()->json([
+            'content' => $replyData['content'],
+            'language' => $replyData['language'],
+        ]);
     }
 }

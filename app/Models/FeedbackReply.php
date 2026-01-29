@@ -11,12 +11,12 @@ class FeedbackReply extends Model
 
     protected $fillable = [
         'feedback_id',
-        'responder_type', // 'admin' ou 'ai'
-        'responder_id',   // si admin => user_id, si IA => null
+        'responder_type',
+        'responder_id',
         'content',
-        'status',         // pending / completed / failed
-        'provider',       // pour IA: 'gemini', 'openai', etc.
-        'provider_response', // stocke JSON brut retour IA
+        'status',
+        'provider',
+        'provider_response',
     ];
 
     public function feedback()
@@ -24,8 +24,18 @@ class FeedbackReply extends Model
         return $this->belongsTo(Feedback::class);
     }
 
-    public function admin()
+    public function responder()
     {
         return $this->belongsTo(User::class, 'responder_id');
+    }
+
+    public function isAIGenerated(): bool
+    {
+        return $this->responder_type === 'ai';
+    }
+
+    public function isAdminResponse(): bool
+    {
+        return $this->responder_type === 'admin';
     }
 }

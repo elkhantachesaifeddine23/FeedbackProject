@@ -36,14 +36,20 @@ return [
     ],
 
     'twilio' => [
-    'sid'   => env('TWILIO_SID'),
-    'token' => env('TWILIO_AUTH_TOKEN'),
-    'from'  => env('TWILIO_FROM'),
-],
-'gemini' => [
+        'sid'   => env('TWILIO_SID'),
+        'token' => env('TWILIO_AUTH_TOKEN'),
+        'from'  => env('TWILIO_FROM'),
+    ],
+
+    'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL'),
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+    ],
 
 ];

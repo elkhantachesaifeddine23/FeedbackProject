@@ -20,6 +20,8 @@ class FeedbackRequest extends Model
         'provider_response',
         'sent_at',
         'responded_at',
+        'detected_language',
+        'feedback_text',
     ];
 
     protected $casts = [
@@ -40,5 +42,25 @@ class FeedbackRequest extends Model
     public function feedback()
     {
         return $this->hasOne(Feedback::class);
+    }
+
+    public function replies()
+    {
+        return $this->hasManyThrough(
+            FeedbackReply::class,
+            Feedback::class,
+            'feedback_request_id',
+            'feedback_id'
+        );
+    }
+
+    public function lastReply()
+    {
+        return $this->hasOneThrough(
+            FeedbackReply::class,
+            Feedback::class,
+            'feedback_request_id',
+            'feedback_id'
+        )->latestOfMany();
     }
 }

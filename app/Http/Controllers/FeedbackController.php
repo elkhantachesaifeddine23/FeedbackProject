@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Feedback;
 use App\Models\FeedbackRequest;
+use App\Jobs\GenerateAIReplyJob;
+use App\Services\AIReplyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -109,11 +111,24 @@ class FeedbackController extends Controller
             'is_public'           => true,
         ]);
 
-        // ✅ Update request
+        // 🌍 Détecte la langue du commentaire (si fourni)
+        $aiService = new AIReplyService();
+        $detectedLanguage = 'en'; // Défaut
+        
+        if ($request->comment) {
+            $detectedLanguage = $aiService->detectLanguage($request->comment);
+        }
+
+        // ✅ Update request avec langue détectée et contenu du feedback
         $feedbackRequest->update([
-            'status'        => 'completed',
-            'responded_at'  => now(),
+            'status'              => 'completed',
+            'responded_at'        => now(),
+            'detected_language'   => $detectedLanguage,
+            'feedback_text'       => $request->comment,
         ]);
+
+        // 🤖 Lance le Job de génération de réponse IA (multilingue)
+        dispatch(new GenerateAIReplyJob($feedback));
 
         // ✅ Logique Google Reviews
         $googleUrl = null;

@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\FeedbackRequest;
+use App\Jobs\GenerateAIReplyJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Auth;
 use App\Mail\FeedbackRequestMail;
 use App\Services\SmsService;
+use App\Services\AIReplyService;
 use Illuminate\Support\Facades\Log;
 
 class FeedbackRequestController extends Controller
@@ -155,6 +157,15 @@ class FeedbackRequestController extends Controller
             'id' => $feedbackRequest->id,
             'channel' => $data['channel'],
         ]);
+
+        // 🚀 NOUVEAU: Lance le Job de génération de réponse IA
+        // Cela va:
+        // 1. Détecter la langue du feedback quand il arrive
+        // 2. Générer une réponse en cette langue
+        // 3. Escalader automatiquement si note basse
+        // Note: Le feedback_text sera rempli quand le client répond
+        // Pour l'instant, on peut déclencher le job après réception du feedback
+        // dispatch(new GenerateAIReplyJob($feedbackRequest, 4)); // À déclencher après réception
 
         return back()->with('success', 'Demande de feedback envoyée avec succès');
     }

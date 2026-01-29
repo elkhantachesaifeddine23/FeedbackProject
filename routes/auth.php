@@ -9,7 +9,6 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
-use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Admin2FAController;
 use Illuminate\Support\Facades\Route;
 
@@ -42,19 +41,6 @@ Route::middleware('guest')->group(function () {
     Route::post('admin/2fa', [Admin2FAController::class, 'verify'])
         ->middleware('throttle:5,1')
         ->name('admin.2fa.verify');
-
-    // Google OAuth
-    Route::get('google', [GoogleAuthController::class, 'redirectToGoogle'])
-        ->name('google.redirect');
-
-    Route::get('google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])
-        ->name('google.callback');
-
-    Route::get('select-company', [GoogleAuthController::class, 'showSelectCompany'])
-        ->name('select-company');
-
-    Route::post('select-company', [GoogleAuthController::class, 'storeUserAndCompany'])
-        ->name('select-company.store');
 });
 
 Route::middleware('auth')->group(function () {
@@ -78,7 +64,4 @@ Route::middleware('auth')->group(function () {
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');
-
-    Route::post('google/logout', [GoogleAuthController::class, 'logout'])
-        ->name('google.logout');
 });
