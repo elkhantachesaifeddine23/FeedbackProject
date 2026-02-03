@@ -1,6 +1,120 @@
 import { Link, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
+// Composant Skeleton Loader pour entreprise
+function SkeletonLoader() {
+    return (
+        <div className="animate-pulse p-6 space-y-6">
+            {/* Header avec actions */}
+            <div className="flex items-center justify-between mb-6">
+                <div>
+                    <div className="h-8 bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg w-64 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-48"></div>
+                </div>
+                <div className="flex gap-3">
+                    <div className="h-10 bg-gray-200 rounded-xl w-32"></div>
+                    <div className="h-10 bg-gradient-to-r from-indigo-200 to-violet-200 rounded-xl w-40"></div>
+                </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="w-12 h-12 bg-gradient-to-br from-indigo-200 to-violet-200 rounded-xl"></div>
+                            <div className="h-6 bg-gray-200 rounded w-12"></div>
+                        </div>
+                        <div className="space-y-2">
+                            <div className="h-8 bg-gray-200 rounded w-20"></div>
+                            <div className="h-4 bg-gray-200 rounded w-32"></div>
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                            <div className="h-3 bg-gray-200 rounded w-28"></div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Contenu principal avec graphiques */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Graphique principal */}
+                <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="h-6 bg-gray-200 rounded w-48"></div>
+                        <div className="flex gap-2">
+                            <div className="h-8 bg-gray-200 rounded w-16"></div>
+                            <div className="h-8 bg-gray-200 rounded w-16"></div>
+                            <div className="h-8 bg-gray-200 rounded w-16"></div>
+                        </div>
+                    </div>
+                    <div className="h-72 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl"></div>
+                </div>
+
+                {/* Sidebar stats */}
+                <div className="space-y-4">
+                    <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+                        <div className="h-6 bg-gray-200 rounded w-32 mb-4"></div>
+                        <div className="space-y-3">
+                            {[70, 85, 60, 45].map((width, i) => (
+                                <div key={i} className="space-y-2">
+                                    <div className="flex justify-between">
+                                        <div className="h-4 bg-gray-200 rounded w-20"></div>
+                                        <div className="h-4 bg-gray-200 rounded w-12"></div>
+                                    </div>
+                                    <div className="h-2 bg-gray-200 rounded-full" style={{ width: `${width}%` }}></div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                    <div className="h-6 bg-gray-200 rounded w-40"></div>
+                    <div className="h-9 bg-gray-200 rounded-lg w-64"></div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead className="bg-gray-50 border-b border-gray-100">
+                            <tr>
+                                {[1, 2, 3, 4, 5].map((i) => (
+                                    <th key={i} className="px-6 py-4">
+                                        <div className="h-4 bg-gray-200 rounded w-24"></div>
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {[1, 2, 3, 4, 5, 6].map((i) => (
+                                <tr key={i} className="border-b border-gray-100">
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                                            <div className="h-4 bg-gray-200 rounded w-32"></div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                                    <td className="px-6 py-4"><div className="h-6 bg-gray-200 rounded-full w-20"></div></td>
+                                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-28"></div></td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex gap-2">
+                                            <div className="h-8 w-8 bg-gray-200 rounded-lg"></div>
+                                            <div className="h-8 w-8 bg-gray-200 rounded-lg"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function AuthenticatedLayout({ user, header, children }) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -45,20 +159,6 @@ export default function AuthenticatedLayout({ user, header, children }) {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {loading && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-white/70 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 rounded-2xl border border-indigo-200 bg-white px-6 py-4 shadow-lg">
-                        <span className="relative flex h-6 w-6">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-luminea-400 opacity-50" />
-                            <span className="relative inline-flex h-6 w-6 animate-spin rounded-full border-2 border-luminea-600 border-t-transparent" />
-                        </span>
-                        <div>
-                            <p className="text-sm font-semibold text-gray-900">Chargement en cours…</p>
-                            <p className="text-xs text-gray-500">Merci de patienter quelques secondes.</p>
-                        </div>
-                    </div>
-                </div>
-            )}
             {/* Mobile sidebar backdrop */}
             {sidebarOpen && (
                 <div 
@@ -212,8 +312,18 @@ export default function AuthenticatedLayout({ user, header, children }) {
                 </header>
 
                 {/* Page content */}
-                <main className="p-6">
-                    {children}
+                <main className="relative min-h-screen">
+                    {/* Skeleton overlay pendant le chargement */}
+                    {loading && (
+                        <div className="absolute inset-0 bg-gray-50 z-20 transition-opacity duration-300">
+                            <SkeletonLoader />
+                        </div>
+                    )}
+                    
+                    {/* Contenu réel avec transition */}
+                    <div className={`transition-opacity duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}>
+                        {children}
+                    </div>
                 </main>
             </div>
         </div>
