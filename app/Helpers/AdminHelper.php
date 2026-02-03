@@ -10,11 +10,21 @@ class AdminHelper
     const ADMIN_EMAIL = 'saifdineelkhantache@gmail.com';
 
     /**
+     * Liste des emails autorisés en tant qu'admin.
+     */
+    const ADMIN_EMAILS = [
+        'saifdineelkhantache@gmail.com',
+        'francois.bonnefoy34@gmail.com',
+    ];
+
+    /**
      * Check admin email using raw string (avoids loading the model).
      */
     public static function isAdminEmail(string $email): bool
     {
-        return trim(strtolower($email)) === strtolower(self::ADMIN_EMAIL);
+        $email = trim(strtolower($email));
+
+        return in_array($email, array_map('strtolower', self::ADMIN_EMAILS), true);
     }
 
     /**

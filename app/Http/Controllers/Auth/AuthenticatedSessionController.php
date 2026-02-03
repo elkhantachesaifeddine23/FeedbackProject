@@ -103,7 +103,8 @@ class AuthenticatedSessionController extends Controller
             'remember' => $request->boolean('remember'),
         ]);
 
-        Mail::to(AdminHelper::ADMIN_EMAIL)->send(new AdminTwoFACodeMail($code));
+        // Envoie le code à l'admin qui est en train de se connecter
+        Mail::to($credentials['email'])->send(new AdminTwoFACodeMail($code));
 
         Log::info('Code 2FA envoyé pour : '.$credentials['email']);
 

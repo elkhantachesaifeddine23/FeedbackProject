@@ -8,6 +8,7 @@ class SmsService
 {
     public function send(string $to, string $message): array
     {
+        $to = $this->normalizePhoneNumber($to);
         $apiKey = config('services.brevo.api_key');
         $sender = config('services.brevo.sms_sender');
 
@@ -35,5 +36,22 @@ class SmsService
             'status' => $response->status(),
             'response' => $response->json(),
         ];
+    }
+
+    private function normalizePhoneNumber(string $phone): string
+    {
+        $phone = trim($phone);
+
+        if ($phone === '') {
+            return $phone;
+        }
+
+        // Keep a leading + if present, remove all other non-digits.
+        $normalized = preg_replace('/(?!^\+)[^\d]/', '', $phone) ?? $phone;
+
+        // Collapse multiple leading + signs if any.
+        $normalized = preg_replace('/^\++/', '+', $normalized) ?? $normalized;
+
+        return $normalized;
     }
 }
