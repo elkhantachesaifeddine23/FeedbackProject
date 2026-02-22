@@ -232,7 +232,7 @@ export default function Reply({ feedback }) {
                                 {/* Cancel Link */}
                                 <div className="text-center pt-2">
                                     <Link 
-                                        href={route('feedback.adminShow', feedback.id)} 
+                                        href={route('feedbacks.index')} 
                                         className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 font-medium"
                                     >
                                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

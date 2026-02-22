@@ -277,4 +277,18 @@ class FeedbackController extends Controller
         // ou Auth::user()?->is_admin si tu as un champ
         ]);
     }
+
+    /**
+     * Suppression d'un feedback (admin)
+     */
+    public function destroy($id)
+    {
+        $feedbackRequest = FeedbackRequest::findOrFail($id);
+        $feedbackRequest->delete();
+        // Supprimer aussi le feedback lié si besoin
+        if ($feedbackRequest->feedback) {
+            $feedbackRequest->feedback->delete();
+        }
+        return redirect()->route('feedbacks.index')->with('success', 'Feedback supprimé');
+    }
 }

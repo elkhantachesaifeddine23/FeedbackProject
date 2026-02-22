@@ -125,12 +125,8 @@ export default function AdminLayout({ header, children }) {
                 <div className="flex flex-col h-full">
                     {/* Logo */}
                     <div className="flex items-center gap-3 px-6 py-4 border-b border-luminea-500">
-                        <Link href={route('admin.dashboard')} className="flex items-center gap-3 hover:opacity-80 transition">
-                            <img src="/images/logo_Luminea.png" alt="Luminea" className="h-12 w-auto" />
-                            <div className="hidden sm:block">
-                                <h1 className="text-lg font-bold text-white">LUMINEA</h1>
-                                <p className="text-xs text-indigo-200">Admin</p>
-                            </div>
+                        <Link href={route('admin.dashboard')} className="flex items-center justify-center w-full">
+                            <img src="/images/logo_Luminea2.png" alt="Luminea" className="h-20 w-auto" />
                         </Link>
                     </div>
 

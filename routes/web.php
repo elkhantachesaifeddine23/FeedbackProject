@@ -15,7 +15,8 @@ use App\Http\Controllers\{
     FeedbackReplyController,
     ReviewPlatformController,
     SettingsController,
-    TaskController
+    TaskController,
+    HealthController
 };
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminRadarController;
@@ -27,6 +28,10 @@ use App\Services\SmsService;
 | Public routes
 |--------------------------------------------------------------------------
 */
+
+// Health checks (for load balancers and monitoring)
+Route::get('/health', [HealthController::class, 'index'])->name('health');
+Route::get('/health/detailed', [HealthController::class, 'detailed'])->name('health.detailed');
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -71,6 +76,8 @@ Route::get('/feedback-requests/{feedbackRequest}/qr', [FeedbackRequestController
 */
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/analytics', [DashboardController::class, 'analytics'])
+        ->name('analytics.index');
 
     // Liste de tous les feedbacks
     Route::get('/feedbacks', [FeedbackController::class, 'index'])
@@ -78,6 +85,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/feedbacks/{id}', [FeedbackController::class, 'adminShow'])
         ->name('feedback.adminShow');
+
+    // Suppression d'un feedback
+    Route::delete('/feedbacks/{id}', [FeedbackController::class, 'destroy'])
+        ->name('feedbacks.destroy');
 
     // Configuration du design de la page feedback
     Route::get('/feedback-design', [FeedbackDesignController::class, 'edit'])

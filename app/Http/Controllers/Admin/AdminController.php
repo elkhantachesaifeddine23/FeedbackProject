@@ -361,7 +361,75 @@ class AdminController extends Controller
 
     public function analytics()
     {
-        return Inertia::render('Admin/Analytics');
+        // Feedbacks par canal (tous feedbacks, toutes entreprises)
+        $channels = ['sms', 'qr', 'email'];
+        $feedbacksByChannel = collect($channels)->mapWithKeys(function ($channel) {
+            $count = \App\Models\FeedbackRequest::where('channel', $channel)
+                ->whereHas('feedback')
+                ->count();
+            return [$channel => $count];
+        });
+        // Statistiques globales
+        $totalCompanies = \App\Models\Company::count();
+        $newCompanies = \App\Models\Company::whereMonth('created_at', now()->month)
+            ->whereYear('created_at', now()->year)
+            ->count();
+        $totalFeedbacks = \App\Models\Feedback::count();
+        $activeCompanies = \App\Models\Company::whereHas('feedbackRequests.feedback')->count();
+        $avgFeedbacksPerCompany = $totalCompanies > 0 ? round($totalFeedbacks / $totalCompanies, 1) : 0;
+
+        // Évolution du nombre d'entreprises (12 derniers mois)
+        $companiesTrend = collect(range(0, 11))->map(function ($i) {
+            $date = now()->subMonths(11 - $i);
+            return [
+                'date' => $date->format('Y-m'),
+                'count' => \App\Models\Company::whereYear('created_at', $date->year)
+                    ->whereMonth('created_at', $date->month)
+                    ->count(),
+            ];
+        });
+
+        // Évolution du nombre de feedbacks (12 derniers mois)
+        $feedbacksTrend = collect(range(0, 11))->map(function ($i) {
+            $date = now()->subMonths(11 - $i);
+            return [
+                'date' => $date->format('Y-m'),
+                'count' => \App\Models\Feedback::whereYear('created_at', $date->year)
+                    ->whereMonth('created_at', $date->month)
+                    ->count(),
+            ];
+        });
+
+        // Top entreprises par feedbacks
+        $topCompanies = \App\Models\Company::withCount(['feedbackRequests as feedbacks' => function ($q) {
+            $q->whereHas('feedback');
+        }])
+            ->orderByDesc('feedbacks')
+            ->limit(10)
+            ->get()
+            ->map(function ($company) {
+                return [
+                    'name' => $company->name,
+                    'feedbacks' => $company->feedbacks,
+                    'rating' => \App\Models\Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+                        $q->where('company_id', $company->id);
+                    })->avg('rating') ?? 0,
+                ];
+            });
+
+        return Inertia::render('Admin/Analytics', [
+            'stats' => [
+                'totalCompanies' => $totalCompanies,
+                'newCompanies' => $newCompanies,
+                'totalFeedbacks' => $totalFeedbacks,
+                'avgFeedbacksPerCompany' => $avgFeedbacksPerCompany,
+                'activeCompanies' => $activeCompanies,
+            ],
+            'companiesTrend' => $companiesTrend,
+            'feedbacksTrend' => $feedbacksTrend,
+            'topCompanies' => $topCompanies,
+            'feedbacksByChannel' => $feedbacksByChannel,
+        ]);
     }
 
     public function subscriptions()

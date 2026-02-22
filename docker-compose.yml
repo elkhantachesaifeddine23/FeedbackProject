@@ -20,6 +20,23 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis for caching and queues
+  redis:
+    image: redis:7-alpine
+    container_name: inertia_crud_redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - inertia_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
   app:
     build:
       context: .
@@ -29,15 +46,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       DB_HOST: postgres
       DB_DATABASE: ${DB_DATABASE:-inertia_crud}
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_CACHE_CONNECTION: cache
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
       APP_KEY: ${APP_KEY:-base64:2jLmFDcSo5nDlEDT4mMJUZ5yFHt0U6VyOUXYT6yDQhk=}
       APP_ENV: ${APP_ENV:-local}
-      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_DEBUG: ${APP_DEBUG:-false}
       APP_URL: ${APP_URL:-http://localhost}
+      SENTRY_LARAVEL_DSN: ${SENTRY_LARAVEL_DSN:-}
     ports:
       - "${APP_PORT:-80}:80"
     volumes:
@@ -45,8 +70,39 @@ services:
     networks:
       - inertia_network
 
+  # Queue worker for background jobs
+  queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inertia_crud_queue
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_DATABASE: ${DB_DATABASE:-inertia_crud}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      QUEUE_CONNECTION: redis
+      APP_KEY: ${APP_KEY:-base64:2jLmFDcSo5nDlEDT4mMJUZ5yFHt0U6VyOUXYT6yDQhk=}
+      APP_ENV: ${APP_ENV:-local}
+      APP_DEBUG: ${APP_DEBUG:-false}
+    volumes:
+      - ./:/app
+    networks:
+      - inertia_network
+    command: php artisan queue:work redis --timeout=600 --tries=3 --delay=60
+
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   inertia_network:
+    driver: bridge

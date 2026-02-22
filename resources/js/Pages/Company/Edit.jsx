@@ -59,6 +59,7 @@ export default function Edit({ auth, company }) {
                     </div>
 
                     <form onSubmit={submit} className="p-8 space-y-8">
+                        {/* Nouvelle section professionnelle */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <FormInput
                                 label="Nom de l'entreprise"
@@ -69,7 +70,6 @@ export default function Edit({ auth, company }) {
                                 error={errors.name}
                                 required
                             />
-
                             <FormInput
                                 label="Secteur d'activité"
                                 value={data.sector}
@@ -80,48 +80,53 @@ export default function Edit({ auth, company }) {
                             />
                         </div>
 
-                        {/* Google Integration Section */}
-                        <div className="pt-8 border-t-2 border-gray-100">
-                            <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-2xl p-6 mb-6 border-2 border-red-100">
-                                <div className="flex items-start gap-4">
-                                    <div className="flex-shrink-0">
-                                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-md">
-                                            <GoogleIcon className="w-8 h-8" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h4 className="text-lg font-black text-gray-900 mb-1">
-                                            Intégration Google Business
-                                        </h4>
-                                        <p className="text-base text-gray-600">
-                                            Connectez votre profil Google pour rediriger vos clients vers vos avis Google.
-                                        </p>
-                                    </div>
-                                </div>
+                        {/* Statistiques synthétiques */}
+                        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl p-6 shadow-md flex flex-col items-center">
+                                <span className="text-2xl font-bold text-indigo-700">4.8</span>
+                                <span className="text-sm text-gray-600 mt-2">Note moyenne</span>
                             </div>
-
-                            <div className="space-y-6">
-                                <FormInput
-                                    label="Google Place ID"
-                                    value={data.google_place_id}
-                                    onChange={(e) => setData('google_place_id', e.target.value)}
-                                    placeholder="ChIJN1t_tDeuEmsRUsoyG83frY4"
-                                    icon={<MapPin className="w-5 h-5 text-gray-400" />}
-                                    error={errors.google_place_id}
-                                    helpText="L'identifiant unique de votre établissement sur Google Maps"
-                                />
-
-                                <FormInput
-                                    label="Lien Google Reviews"
-                                    value={data.google_review_url}
-                                    onChange={(e) => setData('google_review_url', e.target.value)}
-                                    placeholder="https://g.page/r/..."
-                                    icon={<LinkIcon className="w-5 h-5 text-gray-400" />}
-                                    error={errors.google_review_url}
-                                    helpText="Le lien direct pour laisser un avis sur votre fiche Google"
-                                />
+                            <div className="bg-gradient-to-br from-pink-100 to-orange-100 rounded-2xl p-6 shadow-md flex flex-col items-center">
+                                <span className="text-2xl font-bold text-pink-700">120</span>
+                                <span className="text-sm text-gray-600 mt-2">Feedbacks reçus</span>
+                            </div>
+                            <div className="bg-gradient-to-br from-green-100 to-blue-100 rounded-2xl p-6 shadow-md flex flex-col items-center">
+                                <span className="text-2xl font-bold text-green-700">95%</span>
+                                <span className="text-sm text-gray-600 mt-2">Taux de complétion</span>
                             </div>
                         </div>
+
+                        {/* Plateformes connectées */}
+                        <div className="mt-8">
+                            <h4 className="text-lg font-bold text-gray-900 mb-4">Plateformes connectées</h4>
+                            <div className="flex gap-4">
+                                {/* Exemple d'icônes colorées */}
+                                <GoogleIcon className="w-8 h-8" />
+                                <svg className="w-8 h-8" viewBox="0 0 24 24"><path fill="#C41200" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                                {/* Ajouter d'autres icônes selon les plateformes */}
+                            </div>
+                        </div>
+
+                        {/* Équipe */}
+                        <div className="mt-8">
+                            <h4 className="text-lg font-bold text-gray-900 mb-4">Équipe</h4>
+                            <ul className="space-y-2">
+                                <li className="flex items-center gap-3">
+                                    <span className="w-8 h-8 bg-indigo-200 rounded-full flex items-center justify-center font-bold text-indigo-700">A</span>
+                                    <span className="font-medium text-gray-800">Alice Dupont</span>
+                                    <span className="text-sm text-gray-500">Admin</span>
+                                </li>
+                                <li className="flex items-center gap-3">
+                                    <span className="w-8 h-8 bg-pink-200 rounded-full flex items-center justify-center font-bold text-pink-700">B</span>
+                                    <span className="font-medium text-gray-800">Bob Martin</span>
+                                    <span className="text-sm text-gray-500">Collaborateur</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        {/* Paramètres */}
+                        {/* (Retiré) Paramètres et actions rapides */}
+                        {/* Fin nouvelle section */}
 
                         {/* Actions */}
                         <div className="flex items-center justify-between pt-8 border-t-2 border-gray-100">

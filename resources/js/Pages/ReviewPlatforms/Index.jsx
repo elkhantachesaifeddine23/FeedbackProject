@@ -9,11 +9,25 @@ const PlatformIcon = ({ iconName, className }) => {
     // Si c'est une icône de react-icons/si
     if (iconName.startsWith('Si')) {
         const Icon = SimpleIcons[iconName];
+        // Couleurs officielles SimpleIcons
+        const simpleIconColors = {
+            SiGoogle: '#4285F4',
+            SiFacebook: '#1877F3',
+            SiTripadvisor: '#34E0A1',
+            SiYelp: '#C41200',
+            SiTrustpilot: '#00B67A',
+            SiBookingdotcom: '#003580',
+            SiAmazon: '#FF9900',
+            SiInstagram: '#E4405F',
+            SiGooglemaps: '#4285F4',
+            SiAppstore: '#0D96F6',
+            SiGoogleplay: '#34A853',
+        };
         if (Icon) {
-            return <Icon className={className} />;
+            return <Icon className={className} color={simpleIconColors[iconName] || '#1e3a8a'} />;
         }
     }
-    
+
     // Si c'est une icône de lucide-react
     const lucideIcons = {
         Star,
@@ -25,14 +39,14 @@ const PlatformIcon = ({ iconName, className }) => {
         Stethoscope,
         Scissors,
     };
-    
+
     const Icon = lucideIcons[iconName];
     if (Icon) {
-        return <Icon className={className} />;
+        return <Icon className={className} color="#1e3a8a" />;
     }
-    
+
     // Fallback
-    return <Star className={className} />;
+    return <Star className={className} color="#1e3a8a" />;
 };
 
 export default function Index({ auth, platforms }) {
@@ -154,12 +168,9 @@ export default function Index({ auth, platforms }) {
                             {/* Header */}
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                                        platform.is_active 
-                                            ? 'bg-blue-100 text-blue-900' 
-                                            : 'bg-gray-100 text-gray-500'
-                                    }`}>
-                                        <PlatformIcon iconName={platform.icon} className="w-6 h-6" />
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-white`}>
+                                        {/* Icône colorée */}
+                                        <PlatformIcon iconName={platform.icon} className="w-8 h-8" style={{ color: platform.color ?? '#1e3a8a' }} />
                                     </div>
                                     <div>
                                         <h3 className="text-xl font-black text-gray-900">{platform.name}</h3>

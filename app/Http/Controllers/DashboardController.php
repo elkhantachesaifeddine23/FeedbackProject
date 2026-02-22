@@ -13,136 +13,279 @@ use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
+    public function analytics()
+    {
+        $company = Auth::user()->company;
+        // Récupérer tous les feedbacks de l'entreprise
+        $feedbacks = Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+            $q->where('company_id', $company->id);
+        })->get();
+
+        // Répartition des notes
+        $ratings = collect([1,2,3,4,5])->mapWithKeys(function ($star) use ($feedbacks) {
+            return [$star => $feedbacks->where('rating', $star)->count()];
+        });
+        $ratingsTotal = $feedbacks->count();
+
+        // Sources des feedbacks
+        $sources = FeedbackRequest::where('company_id', $company->id)
+            ->select('channel', DB::raw('count(*) as count'))
+            ->groupBy('channel')
+            ->pluck('count', 'channel');
+
+        // Évolution des notes (30 derniers jours)
+        $trendRaw = Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+            $q->where('company_id', $company->id);
+        })
+        ->whereBetween('created_at', [now()->subDays(29)->startOfDay(), now()->endOfDay()])
+        ->selectRaw('DATE(created_at) as date, avg(rating) as avg_rating, count(*) as count')
+        ->groupBy('date')
+        ->orderBy('date', 'asc')
+        ->get();
+
+        $trend = [];
+        for ($i = 29; $i >= 0; $i--) {
+            $date = now()->subDays($i)->format('Y-m-d');
+            $row = $trendRaw->firstWhere('date', $date);
+            $trend[] = [
+                'date' => $date,
+                'avg_rating' => $row ? round($row->avg_rating, 2) : null,
+                'count' => $row ? $row->count : 0,
+            ];
+        }
+
+        // Note moyenne
+        $avgRating = $feedbacks->whereNotNull('rating')->avg('rating');
+        $avgRating = $avgRating !== null ? round((float) $avgRating, 2) : 0;
+
+        // Total feedbacks
+        $totalFeedbacks = $feedbacks->count() ?? 0;
+
+        // Taux de complétion
+        $completedFeedbacks = FeedbackRequest::where('company_id', $company->id)
+            ->where('status', 'completed')->count();
+        $sentFeedbacks = FeedbackRequest::where('company_id', $company->id)
+            ->count();
+        $completionRate = $sentFeedbacks > 0 ? round(($completedFeedbacks / $sentFeedbacks) * 100, 2) : 0;
+
+        // Temps de traitement moyen (en heures)
+        $processingTimes = FeedbackRequest::where('company_id', $company->id)
+            ->where('status', 'completed')
+            ->whereNotNull('updated_at')
+            ->whereNotNull('created_at')
+            ->get()
+            ->map(function ($f) {
+                return $f->updated_at && $f->created_at ? $f->updated_at->diffInMinutes($f->created_at) : null;
+            })
+            ->filter();
+        $avgProcessingTime = $processingTimes->count() > 0 ? round($processingTimes->avg() / 60, 2) : 0; // en heures
+
+        // Période précédente (30 jours avant)
+        $prevStart = now()->subDays(59)->startOfDay();
+        $prevEnd = now()->subDays(30)->endOfDay();
+        $prevFeedbacks = Feedback::whereHas('feedbackRequest', function ($q) use ($company, $prevStart, $prevEnd) {
+            $q->where('company_id', $company->id)
+                ->whereBetween('created_at', [$prevStart, $prevEnd]);
+        })->get();
+        $prevAvgRating = $prevFeedbacks->whereNotNull('rating')->avg('rating');
+        $prevAvgRating = $prevAvgRating !== null ? round((float) $prevAvgRating, 2) : 0;
+        $prevTotalFeedbacks = $prevFeedbacks->count() ?? 0;
+        $prevCompletedFeedbacks = FeedbackRequest::where('company_id', $company->id)
+            ->where('status', 'completed')
+            ->whereBetween('created_at', [$prevStart, $prevEnd])
+            ->count();
+        $prevSentFeedbacks = FeedbackRequest::where('company_id', $company->id)
+            ->whereBetween('created_at', [$prevStart, $prevEnd])
+            ->count();
+        $prevCompletionRate = $prevSentFeedbacks > 0 ? round(($prevCompletedFeedbacks / $prevSentFeedbacks) * 100, 2) : 0;
+        $prevProcessingTimes = FeedbackRequest::where('company_id', $company->id)
+            ->where('status', 'completed')
+            ->whereBetween('created_at', [$prevStart, $prevEnd])
+            ->whereNotNull('updated_at')
+            ->whereNotNull('created_at')
+            ->get()
+            ->map(function ($f) {
+                return $f->updated_at && $f->created_at ? $f->updated_at->diffInMinutes($f->created_at) : null;
+            })
+            ->filter();
+        $prevAvgProcessingTime = $prevProcessingTimes->count() > 0 ? round($prevProcessingTimes->avg() / 60, 2) : 0;
+
+        // Évolution
+        $evolRating = round($avgRating - $prevAvgRating, 2);
+        $evolFeedbacks = $prevTotalFeedbacks > 0 ? round((($totalFeedbacks - $prevTotalFeedbacks) / $prevTotalFeedbacks) * 100, 2) : 0;
+        $evolCompletion = round($completionRate - $prevCompletionRate, 2);
+        $evolProcessing = round($avgProcessingTime - $prevAvgProcessingTime, 2);
+
+        // Quality Index (exemple simple)
+        $qualityIndex = round(($avgRating * 20 + $completionRate) / 2, 0);
+        $evolQualityIndex = round($qualityIndex - (($prevAvgRating * 20 + $prevCompletionRate) / 2), 0);
+
+        return \Inertia\Inertia::render('Analytics', [
+            'ratings' => $ratings,
+            'ratingsTotal' => $ratingsTotal,
+            'sources' => $sources,
+            'trend' => $trend,
+            'qualityIndex' => $qualityIndex,
+            'evolQualityIndex' => $evolQualityIndex,
+            'avgRating' => $avgRating,
+            'evolRating' => $evolRating,
+            'totalFeedbacks' => $totalFeedbacks,
+            'evolFeedbacks' => $evolFeedbacks,
+            'completionRate' => $completionRate,
+            'evolCompletion' => $evolCompletion,
+            'avgProcessingTime' => $avgProcessingTime,
+            'evolProcessing' => $evolProcessing,
+        ]);
+    }
     public function index()
     {
         $company = Auth::user()->company;
         $globalQRCode = $this->generateGlobalQRCode();
         
+        // OPTIMIZED: Pagination au lieu de charger tous les customers
         $customers = Customer::where('company_id', $company->id)
-        ->withCount([
-        'feedbackRequests as total_feedbacks',
-        'feedbackRequests as completed_feedbacks' => function ($q) {
-            $q->where('status', 'completed');
-        }
-    ])
-    ->latest()
-    ->get()
-    ->map(fn($c) => [
-        'id' => $c->id,
-        'name' => $c->name,
-        'email' => $c->email,
-        'phone' => $c->phone,
-        'total_feedbacks' => $c->total_feedbacks,
-        'completed_feedbacks' => $c->completed_feedbacks,
-    ]);
+            ->withCount([
+                'feedbackRequests as total_feedbacks',
+                'feedbackRequests as completed_feedbacks' => function ($q) {
+                    $q->where('status', 'completed');
+                }
+            ])
+            ->latest()
+            ->paginate(50) // Limiter à 50 par page
+            ->map(fn($c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'email' => $c->email,
+                'phone' => $c->phone,
+                'total_feedbacks' => $c->total_feedbacks,
+                'completed_feedbacks' => $c->completed_feedbacks,
+            ]);
 
+        // OPTIMIZED: Eager loading + pagination pour éviter N+1 queries
         $feedbacks = FeedbackRequest::where('company_id', $company->id)
-        ->whereHas('customer')
-        ->with(['customer', 'feedback'])
-        ->latest()
-        ->get()
-        ->map(fn ($f) => [
-        'id' => $f->id,
-        'feedback_id' => $f->feedback?->id,
-        'token' => $f->token,
-        'customer' => [
-            'id' => $f->customer->id,
-            'name' => $f->customer->name,
-        ],
-        'status' => $f->status,
-        'rating' => $f->feedback?->rating,
-        'created_at' => $f->created_at->format('Y-m-d H:i'),
-    ]);
+            ->whereHas('customer')
+            ->with(['customer:id,name,email', 'feedback:id,feedback_request_id,rating,comment'])
+            ->latest()
+            ->paginate(50) // Limiter à 50 par page
+            ->map(fn ($f) => [
+                'id' => $f->id,
+                'feedback_id' => $f->feedback?->id,
+                'token' => $f->token,
+                'customer' => [
+                    'id' => $f->customer->id,
+                    'name' => $f->customer->name,
+                ],
+                'status' => $f->status,
+                'rating' => $f->feedback?->rating,
+                'created_at' => $f->created_at->format('Y-m-d H:i'),
+            ]);
 
         $now = now();
         $last7 = now()->subDays(7);
 
-        $requestsTotal = FeedbackRequest::where('company_id', $company->id)->count();
-        $requestsLast7 = FeedbackRequest::where('company_id', $company->id)
-            ->whereBetween('created_at', [$last7, $now])
-            ->count();
-        $completedTotal = FeedbackRequest::where('company_id', $company->id)
-            ->where('status', 'completed')
-            ->count();
-        $completedLast7 = FeedbackRequest::where('company_id', $company->id)
-            ->where('status', 'completed')
-            ->whereBetween('created_at', [$last7, $now])
-            ->count();
-        $failedTotal = FeedbackRequest::where('company_id', $company->id)
-            ->where('status', 'failed')
-            ->count();
-        $pendingTotal = FeedbackRequest::where('company_id', $company->id)
-            ->whereIn('status', ['sent', 'pending'])
-            ->count();
+        // OPTIMIZED: Use cache for recurring stats queries
+        $stats = \Illuminate\Support\Facades\Cache::remember(
+            "dashboard-stats-{$company->id}",
+            3600, // Cache for 1 hour
+            function () use ($company, $now, $last7) {
+                $requestsTotal = FeedbackRequest::where('company_id', $company->id)->count();
+                $requestsLast7 = FeedbackRequest::where('company_id', $company->id)
+                    ->whereBetween('created_at', [$last7, $now])
+                    ->count();
+                $completedTotal = FeedbackRequest::where('company_id', $company->id)
+                    ->where('status', 'completed')
+                    ->count();
+                $completedLast7 = FeedbackRequest::where('company_id', $company->id)
+                    ->where('status', 'completed')
+                    ->whereBetween('created_at', [$last7, $now])
+                    ->count();
+                $failedTotal = FeedbackRequest::where('company_id', $company->id)
+                    ->where('status', 'failed')
+                    ->count();
+                $pendingTotal = FeedbackRequest::where('company_id', $company->id)
+                    ->whereIn('status', ['sent', 'pending'])
+                    ->count();
 
-        $responseRate = $requestsTotal > 0
-            ? round(($completedTotal / $requestsTotal) * 100, 1)
-            : 0;
-        $responseRate7d = $requestsLast7 > 0
-            ? round(($completedLast7 / $requestsLast7) * 100, 1)
+                $responseRate = $requestsTotal > 0
+                    ? round(($completedTotal / $requestsTotal) * 100, 1)
+                    : 0;
+                $responseRate7d = $requestsLast7 > 0
+                    ? round(($completedLast7 / $requestsLast7) * 100, 1)
+                    : 0;
+
+                return [
+                    'customers' => Customer::where('company_id', $company->id)->count(),
+                    'feedbacks_total' => Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+                        $q->where('company_id', $company->id);
+                    })->count(),
+                    'feedbacks_completed' => $completedTotal,
+                    'feedbacks_sent' => $pendingTotal,
+                    'feedbacks_failed' => $failedTotal,
+                    'requests_total' => $requestsTotal,
+                    'requests_last_7d' => $requestsLast7,
+                    'completed_last_7d' => $completedLast7,
+                    'response_rate' => $responseRate,
+                    'response_rate_7d' => $responseRate7d,
+                    'channel_email' => FeedbackRequest::where('company_id', $company->id)->where('channel', 'email')->count(),
+                    'channel_sms' => FeedbackRequest::where('company_id', $company->id)->where('channel', 'sms')->count(),
+                    'channel_whatsapp' => FeedbackRequest::where('company_id', $company->id)->where('channel', 'whatsapp')->count(),
+                    'channel_qr' => FeedbackRequest::where('company_id', $company->id)->where('channel', 'qr')->count(),
+                ];
+            }
+        );
+
+        // Compute avg rating & NPS from paginated feedbacks (on-demand)
+        $allFeedbacks = Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+            $q->where('company_id', $company->id);
+        })->get();
+
+        $avgRating = $allFeedbacks->whereNotNull('rating')->avg('rating');
+        $avgRating = $avgRating ? round((float) $avgRating, 2) : null;
+
+        $promoters = $allFeedbacks->where('rating', 5)->count();
+        $detractors = $allFeedbacks->whereIn('rating', [1, 2])->count();
+        $nps = $stats['feedbacks_completed'] > 0
+            ? round((($promoters - $detractors) / $stats['feedbacks_completed']) * 100, 1)
             : 0;
 
-        $ratings = collect([1, 2, 3, 4, 5])->mapWithKeys(function ($star) use ($feedbacks) {
+        $stats['avg_rating'] = $avgRating;
+        $stats['nps'] = $nps;
+        $stats['positive_count'] = $allFeedbacks->whereIn('rating', [4, 5])->count();
+        $stats['negative_count'] = $allFeedbacks->whereIn('rating', [1, 2])->count();
+        $stats['neutral_count'] = $allFeedbacks->where('rating', 3)->count();
+        $stats['ratings'] = collect([1, 2, 3, 4, 5])->mapWithKeys(function ($star) use ($allFeedbacks) {
             return [
-                $star => $feedbacks->where('rating', $star)->count()
+                $star => $allFeedbacks->where('rating', $star)->count()
             ];
         });
 
-        $positiveCount = $feedbacks->whereIn('rating', [4, 5])->count();
-        $negativeCount = $feedbacks->whereIn('rating', [1, 2])->count();
-        $neutralCount = $feedbacks->where('rating', 3)->count();
+        // Feedback trend (cached)
+        $feedbackTrend = \Illuminate\Support\Facades\Cache::remember(
+            "feedback-trend-{$company->id}",
+            3600,
+            function () use ($company) {
+                $feedbackTrendRaw = Feedback::query()
+                    ->whereHas('feedbackRequest', function ($q) use ($company) {
+                        $q->where('company_id', $company->id);
+                    })
+                    ->whereBetween('created_at', [now()->subDays(13)->startOfDay(), now()->endOfDay()])
+                    ->selectRaw('DATE(created_at) as date, count(*) as count')
+                    ->groupBy('date')
+                    ->orderBy('date', 'asc')
+                    ->get()
+                    ->mapWithKeys(fn ($row) => [$row->date => (int) $row->count]);
 
-        $avgRating = $feedbacks->whereNotNull('rating')->avg('rating');
-        $avgRating = $avgRating ? round((float) $avgRating, 2) : null;
-
-        $promoters = $feedbacks->where('rating', 5)->count();
-        $detractors = $feedbacks->whereIn('rating', [1, 2])->count();
-        $nps = $completedTotal > 0
-            ? round((($promoters - $detractors) / $completedTotal) * 100, 1)
-            : 0;
-
-        $stats = [
-            'customers' => $customers->count(),
-            'feedbacks_total' => $feedbacks->count(),
-            'feedbacks_completed' => $completedTotal,
-            'feedbacks_sent' => $pendingTotal,
-            'feedbacks_failed' => $failedTotal,
-            'requests_total' => $requestsTotal,
-            'requests_last_7d' => $requestsLast7,
-            'completed_last_7d' => $completedLast7,
-            'response_rate' => $responseRate,
-            'response_rate_7d' => $responseRate7d,
-            'avg_rating' => $avgRating,
-            'nps' => $nps,
-            'positive_count' => $positiveCount,
-            'negative_count' => $negativeCount,
-            'neutral_count' => $neutralCount,
-            'ratings' => $ratings,
-            'channel_email' => FeedbackRequest::where('company_id', $company->id)->where('channel', 'email')->count(),
-            'channel_sms' => FeedbackRequest::where('company_id', $company->id)->where('channel', 'sms')->count(),
-            'channel_whatsapp' => FeedbackRequest::where('company_id', $company->id)->where('channel', 'whatsapp')->count(),
-            'channel_qr' => FeedbackRequest::where('company_id', $company->id)->where('channel', 'qr')->count(),
-        ];
-
-        $feedbackTrendRaw = Feedback::query()
-            ->whereHas('feedbackRequest', function ($q) use ($company) {
-                $q->where('company_id', $company->id);
-            })
-            ->whereBetween('created_at', [now()->subDays(13)->startOfDay(), now()->endOfDay()])
-            ->selectRaw('DATE(created_at) as date, count(*) as count')
-            ->groupBy('date')
-            ->orderBy('date', 'asc')
-            ->get()
-            ->mapWithKeys(fn ($row) => [$row->date => (int) $row->count]);
-
-        $feedbackTrend = collect();
-        for ($i = 13; $i >= 0; $i--) {
-            $date = now()->subDays($i)->format('Y-m-d');
-            $feedbackTrend->push([
-                'date' => $date,
-                'count' => $feedbackTrendRaw->get($date, 0),
-            ]);
-        }
+                $trend = collect();
+                for ($i = 13; $i >= 0; $i--) {
+                    $date = now()->subDays($i)->format('Y-m-d');
+                    $trend->push([
+                        'date' => $date,
+                        'count' => $feedbackTrendRaw->get($date, 0),
+                    ]);
+                }
+                return $trend;
+            }
+        );
 
         return Inertia::render('Dashboard/Index', [
             'stats' => $stats,

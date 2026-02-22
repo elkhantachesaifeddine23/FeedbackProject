@@ -1,13 +1,31 @@
+
 import { useState } from 'react';
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import FeedbackCard from '@/Components/FeedbackCard';
+import { QrCode, Download } from 'lucide-react';
 
 export default function Index({ auth, feedbacks }) {
+
     const [filterStatus, setFilterStatus] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [qrModalOpen, setQrModalOpen] = useState(false);
     const [selectedFeedbackForQR, setSelectedFeedbackForQR] = useState(null);
+    const [globalQrModalOpen, setGlobalQrModalOpen] = useState(false);
+
+    // Assume globalQRCode is available via window or props (adapt as needed)
+    const globalQRCode = window.globalQRCode || null;
+
+    const downloadGlobalQR = () => {
+        if (!globalQRCode) return;
+        const link = document.createElement('a');
+        link.href = globalQRCode;
+        link.download = 'qr-feedback-global.svg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     // Filtrage des feedbacks
     const filteredFeedbacks = feedbacks.data.filter(fb => {
@@ -29,8 +47,49 @@ export default function Index({ auth, feedbacks }) {
     return (
         <AuthenticatedLayout user={auth.user} header="Feedbacks">
             <Head title="Feedbacks" />
-
             <div className="space-y-6">
+                {/* Global QR Code Section (best practice: top of feedbacks page) */}
+                {globalQRCode && (
+                    <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-8">
+                        <div className="grid md:grid-cols-2 gap-8 items-center">
+                            <div>
+                                <h2 className="text-3xl font-black text-gray-900 mb-3 flex items-center gap-2">
+                                    <QrCode className="w-8 h-8 text-blue-900" />
+                                    QR Code Global
+                                </h2>
+                                <p className="text-gray-600 font-medium mb-4">
+                                    Partagez ce QR code avec vos clients pour qu'ils puissent facilement laisser un feedback sans être lié à un client spécifique.
+                                </p>
+                                <p className="text-sm text-gray-500 mb-6">
+                                    Les feedbacks collectés seront créés comme nouveaux clients dans votre base de données.
+                                </p>
+                                <button
+                                    onClick={() => setGlobalQrModalOpen(true)}
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-900 text-white font-bold rounded-xl hover:bg-blue-800 transition-all"
+                                >
+                                    <QrCode className="w-5 h-5" />
+                                    Voir le QR Code
+                                </button>
+                            </div>
+                            <div className="flex justify-center">
+                                <div className="bg-gray-50 p-6 rounded-xl border-2 border-gray-200">
+                                    <img 
+                                        src={globalQRCode} 
+                                        alt="QR Code Global"
+                                        className="w-48 h-48"
+                                    />
+                                    <button
+                                        onClick={downloadGlobalQR}
+                                        className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition-all text-sm"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        Télécharger
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {/* Header Premium */}
                 <div className="relative rounded-3xl overflow-hidden shadow-xl">
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700"></div>
@@ -84,61 +143,10 @@ export default function Index({ auth, feedbacks }) {
                     />
                 </div>
 
-                {/* Filters Premium */}
-                <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-6">
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        {/* Search Premium */}
-                        <div className="flex-1">
-                            <div className="relative group">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <svg className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                </div>
-                                <input
-                                    type="text"
-                                    placeholder="Rechercher un client..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Status Filter Premium */}
-                        <div className="flex gap-2">
-                            <FilterButton
-                                active={filterStatus === 'all'}
-                                onClick={() => setFilterStatus('all')}
-                                label="Tous"
-                                gradient="from-indigo-600 to-violet-600"
-                            />
-                            <FilterButton
-                                active={filterStatus === 'sent'}
-                                onClick={() => setFilterStatus('sent')}
-                                label="Envoyés"
-                                gradient="from-blue-600 to-cyan-600"
-                            />
-                            <FilterButton
-                                active={filterStatus === 'pending'}
-                                onClick={() => setFilterStatus('pending')}
-                                label="En attente"
-                                gradient="from-amber-500 to-orange-600"
-                            />
-                            <FilterButton
-                                active={filterStatus === 'completed'}
-                                onClick={() => setFilterStatus('completed')}
-                                label="Complétés"
-                                gradient="from-emerald-600 to-teal-600"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Feedbacks Table Premium */}
-                <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 overflow-hidden">
+                {/* Feedbacks Cards Modern */}
+                <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-6">
                     {filteredFeedbacks.length === 0 ? (
-                        <div className="px-6 py-20 text-center">
+                        <div className="py-20 text-center">
                             <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
                                 <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
@@ -155,165 +163,66 @@ export default function Index({ auth, feedbacks }) {
                         </div>
                     ) : (
                         <>
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
-                                        <tr>
-                                            <th className="px-6 py-4 text-left text-xs font-black text-gray-700 uppercase tracking-wider">
-                                                Client
-                                            </th>
-                                            <th className="px-6 py-4 text-left text-xs font-black text-gray-700 uppercase tracking-wider">
-                                                Statut
-                                            </th>
-                                            <th className="px-6 py-4 text-left text-xs font-black text-gray-700 uppercase tracking-wider">
-                                                Canal
-                                            </th>
-                                            <th className="px-6 py-4 text-left text-xs font-black text-gray-700 uppercase tracking-wider">
-                                                Note
-                                            </th>
-                                            <th className="px-6 py-4 text-left text-xs font-black text-gray-700 uppercase tracking-wider">
-                                                Commentaire
-                                            </th>
-                                            <th className="px-6 py-4 text-left text-xs font-black text-gray-700 uppercase tracking-wider">
-                                                Date
-                                            </th>
-                                            <th className="px-6 py-4 text-right text-xs font-black text-gray-700 uppercase tracking-wider">
-                                                Actions
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200">
-                                        {filteredFeedbacks.map((fb) => (
-                                            <tr key={fb.id} className="hover:bg-gradient-to-r hover:from-indigo-50/50 hover:to-transparent transition-all group">
-                                                <td className="px-6 py-5 whitespace-nowrap">
-                                                    <div className="flex items-center">
-                                                        <div className="relative">
-                                                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-violet-600 rounded-full blur opacity-40 group-hover:opacity-70 transition-opacity"></div>
-                                                            <div className="relative w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
-                                                                {fb.customer?.name?.charAt(0).toUpperCase() || fb.customer?.email?.charAt(0).toUpperCase() || '?'}
-                                                            </div>
-                                                        </div>
-                                                        <div className="ml-4">
-                                                            <div className="text-sm font-bold text-gray-900">
-                                                                {fb.customer?.name || 'Client supprimé'}
-                                                            </div>
-                                                            <div className="text-xs text-gray-500 font-medium">
-                                                                {fb.customer?.email || '—'}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-5 whitespace-nowrap">
-                                                    <StatusBadge status={fb.status} />
-                                                </td>
-                                                <td className="px-6 py-5 whitespace-nowrap">
-                                                    <ChannelBadge channel={fb.channel} />
-                                                </td>
-                                                <td className="px-6 py-5 whitespace-nowrap">
-                                                    <Rating value={fb.feedback?.rating} />
-                                                </td>
-                                                <td className="px-6 py-5 max-w-xs">
-                                                    <p className="text-gray-600 text-sm truncate font-medium">
-                                                        {fb.feedback?.comment || '—'}
-                                                    </p>
-                                                </td>
-                                                <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600 font-semibold">
-                                                    {new Date(fb.created_at).toLocaleDateString('fr-FR', {
-                                                        year: 'numeric',
-                                                        month: 'short',
-                                                        day: 'numeric'
-                                                    })}
-                                                </td>
-                                                <td className="px-6 py-5 whitespace-nowrap text-right">
-                                                    <FeedbackActions 
-                                                        feedback={fb}
-                                                        setQrModalOpen={setQrModalOpen}
-                                                        setSelectedFeedbackForQR={setSelectedFeedbackForQR}
-                                                    />
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Pagination Premium */}
-                            {feedbacks.links && feedbacks.links.length > 3 && (
-                                <div className="px-6 py-4 border-t-2 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
-                                    <div className="flex gap-2">
-                                        {feedbacks.links.map((link, idx) => (
-                                            <Link
-                                                key={idx}
-                                                href={link.url || '#'}
-                                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                                                    link.active
-                                                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg scale-105'
-                                                        : link.url 
-                                                            ? 'text-gray-700 hover:bg-white hover:shadow-md'
-                                                            : 'text-gray-400 cursor-not-allowed'
-                                                }`}
-                                                dangerouslySetInnerHTML={{ __html: link.label }}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            {filteredFeedbacks.map((fb) => (
+                                <FeedbackCard
+                                    key={fb.id}
+                                    feedback={{
+                                        ...fb,
+                                        onQR: () => {
+                                            setSelectedFeedbackForQR(fb);
+                                            setQrModalOpen(true);
+                                        },
+                                        onDelete: () => {
+                                            if (window.confirm('Voulez-vous vraiment supprimer ce feedback ?')) {
+                                                router.delete(route('feedbacks.destroy', fb.id));
+                                            }
+                                        }
+                                    }}
+                                />
+                            ))}
                         </>
                     )}
                 </div>
-            </div>
 
-            {/* Modal QR Code */}
-            {qrModalOpen && selectedFeedbackForQR && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setQrModalOpen(false)}>
-                    <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-xl font-bold text-gray-900">Code QR - Feedback</h3>
-                            <button
-                                onClick={() => setQrModalOpen(false)}
-                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-                        
-                        <div className="bg-gray-50 rounded-xl p-6 flex flex-col items-center">
-                            <p className="text-sm text-gray-600 mb-4 text-center">
-                                Scannez ce code QR pour accéder au formulaire de feedback
-                            </p>
-                            <img 
-                                src={route('feedback-requests.qr', selectedFeedbackForQR.id)} 
-                                alt="QR Code" 
-                                className="w-64 h-64 bg-white p-4 rounded-lg shadow-sm"
-                            />
-                            <div className="mt-4 text-center">
-                                <p className="text-xs text-gray-500">Client: <span className="font-semibold text-gray-900">{selectedFeedbackForQR.customer?.name}</span></p>
+                {/* Global QR Modal */}
+                {globalQrModalOpen && globalQRCode && (
+                    <div 
+                        className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+                        onClick={() => setGlobalQrModalOpen(false)}
+                    >
+                        <div 
+                            className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl border-2 border-gray-200"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <h3 className="text-2xl font-black text-gray-900 mb-6">
+                                QR Code Global
+                            </h3>
+                            <div className="flex justify-center mb-6 bg-gray-50 p-6 rounded-xl">
+                                <img 
+                                    src={globalQRCode} 
+                                    alt="QR Code Global"
+                                    className="w-64 h-64"
+                                />
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={downloadGlobalQR}
+                                    className="flex-1 py-3 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Download className="w-5 h-5" />
+                                    Télécharger
+                                </button>
+                                <button
+                                    onClick={() => setGlobalQrModalOpen(false)}
+                                    className="flex-1 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 transition-all"
+                                >
+                                    Fermer
+                                </button>
                             </div>
                         </div>
-
-                        <div className="mt-6 flex gap-3">
-                            <a
-                                href={route('feedback-requests.qr', selectedFeedbackForQR.id)}
-                                download={`qr-feedback-${selectedFeedbackForQR.id}.png`}
-                                className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-900 text-white text-sm font-semibold rounded-lg hover:bg-blue-950 transition-colors"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
-                                Télécharger
-                            </a>
-                            <button
-                                onClick={() => setQrModalOpen(false)}
-                                className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors"
-                            >
-                                Fermer
-                            </button>
-                        </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </AuthenticatedLayout>
     );
 }
