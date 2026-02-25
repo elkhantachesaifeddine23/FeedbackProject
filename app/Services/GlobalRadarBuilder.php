@@ -19,11 +19,13 @@ class GlobalRadarBuilder
         $totalFeedbacks = Feedback::whereBetween('created_at', [$from, $to])->count();
 
         $positive = Feedback::whereBetween('created_at', [$from, $to])
+            ->notResolved()
             ->whereNotNull('rating')
             ->where('rating', '>=', 4)
             ->count();
 
         $negative = Feedback::whereBetween('created_at', [$from, $to])
+            ->notResolved()
             ->whereNotNull('rating')
             ->where('rating', '<=', 2)
             ->count();
@@ -31,6 +33,7 @@ class GlobalRadarBuilder
         $neutral = max($totalFeedbacks - $positive - $negative, 0);
 
         $avgRating = Feedback::whereBetween('created_at', [$from, $to])
+            ->notResolved()
             ->whereNotNull('rating')
             ->avg('rating');
 
@@ -56,8 +59,10 @@ class GlobalRadarBuilder
             : 0.0;
 
         // Payload for AI: comments are analyzed, keep it capped.
+        // IMPORTANT: Exclude resolved feedbacks from analysis
         $analysisFeedbacks = Feedback::query()
             ->whereBetween('created_at', [$from, $to])
+            ->notResolved()
             ->whereNotNull('comment')
             ->latest()
             ->take(240)

@@ -6,10 +6,9 @@ use App\Models\FeedbackRequest;
 use App\Jobs\GenerateAIReplyJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Auth;
 use App\Mail\FeedbackRequestMail;
-use App\Services\SmsService;
+use App\Services\BrevoService;
 use App\Services\AIReplyService;
 use Illuminate\Support\Facades\Log;
 
@@ -41,6 +40,7 @@ class FeedbackRequestController extends Controller
         // 🔒 Sécurité : empêcher plusieurs feedbacks actifs
         $alreadySent = FeedbackRequest::where('customer_id', $data['customer_id'])
             ->where('company_id', $company->id)
+            ->where('channel', $data['channel'])
             ->whereIn('status', ['pending', 'sent'])
             ->exists();
 
@@ -82,9 +82,7 @@ class FeedbackRequestController extends Controller
             ]);
 
             try {
-                // Utilisation de send() au lieu de queue() pour passer outre le Worker
-                Mail::to($feedbackRequest->customer->email)
-                    ->send(new FeedbackRequestMail($feedbackRequest));
+                app(BrevoService::class)->sendFeedbackEmail($feedbackRequest);
 
                 $feedbackRequest->update([
                     'status' => 'sent',
@@ -135,7 +133,7 @@ class FeedbackRequestController extends Controller
             try {
                 $link = rtrim(config('app.url'), '/') . '/feedback/' . $feedbackRequest->token;
 
-                $sms = app(SmsService::class)->send(
+                $sms = app(BrevoService::class)->sendSms(
                     $feedbackRequest->customer->phone,
                     "Bonjour 👋\nMerci de donner votre avis : " . $link
                 );
@@ -213,6 +211,7 @@ class FeedbackRequestController extends Controller
             // 🔒 Vérifier si feedback déjà envoyé
             $alreadySent = FeedbackRequest::where('customer_id', $customerId)
                 ->where('company_id', $company->id)
+                ->where('channel', $data['channel'])
                 ->whereIn('status', ['pending', 'sent'])
                 ->exists();
 
@@ -236,8 +235,7 @@ class FeedbackRequestController extends Controller
                 // 📧 EMAIL
                 if ($data['channel'] === 'email') {
                     try {
-                        Mail::to($feedbackRequest->customer->email)
-                            ->send(new FeedbackRequestMail($feedbackRequest));
+                        app(BrevoService::class)->sendFeedbackEmail($feedbackRequest);
 
                         $feedbackRequest->update([
                             'status' => 'sent',
@@ -268,7 +266,7 @@ class FeedbackRequestController extends Controller
 
                     try {
                         $link = rtrim(config('app.url'), '/') . '/feedback/' . $feedbackRequest->token;
-                        $sms = app(SmsService::class)->send(
+                        $sms = app(BrevoService::class)->sendSms(
                             $feedbackRequest->customer->phone,
                             "Bonjour 👋\nMerci de donner votre avis : " . $link
                         );

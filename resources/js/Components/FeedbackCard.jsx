@@ -1,4 +1,5 @@
 import { Link, router } from '@inertiajs/react';
+import { Pin } from 'lucide-react';
 
 function getInitials(name, email) {
     if (!name && !email) return '?';
@@ -20,8 +21,33 @@ function RatingStars({ value = 0 }) {
 
 export default function FeedbackCard({ feedback, onReply }) {
     const initials = getInitials(feedback.customer?.name, feedback.customer?.email);
+    const isPinned = feedback.feedback?.is_pinned || false;
+
+    const handleTogglePin = () => {
+        if (!feedback.feedback?.id) return;
+        
+        router.post(
+            route('feedbacks.togglePin', feedback.feedback.id),
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    // Optionnel: afficher une notification
+                }
+            }
+        );
+    };
+
     return (
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6 mb-6 flex flex-col gap-3 transition-all hover:shadow-2xl hover:scale-[1.015]">
+        <div className={`bg-white rounded-3xl shadow-xl border-2 ${isPinned ? 'border-amber-300 bg-amber-50/30' : 'border-gray-100'} p-6 mb-6 flex flex-col gap-3 transition-all hover:shadow-2xl hover:scale-[1.015] relative`}>
+            {/* Badge épinglé */}
+            {isPinned && (
+                <div className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-full text-xs font-bold shadow-lg">
+                    <Pin className="w-3.5 h-3.5 fill-current" />
+                    <span>Épinglé</span>
+                </div>
+            )}
+            
             <div className="flex items-center gap-4 mb-1">
                 <div className="w-14 h-14 rounded-full flex items-center justify-center font-bold text-xl text-white shadow-lg border-4 border-white" style={{background: feedback.customer?.color || 'linear-gradient(135deg,#6366f1,#818cf8)'}}>
                     {initials}
@@ -45,7 +71,21 @@ export default function FeedbackCard({ feedback, onReply }) {
             <div className="flex flex-wrap items-center gap-2 mt-1 pt-2 border-t border-gray-100">
                 <Link href={route('feedback.adminShow', feedback.id)} className="px-4 py-2 bg-gray-50 text-blue-700 rounded-full font-bold shadow hover:bg-blue-50 transition text-xs">Voir</Link>
                 {feedback.feedback?.id && (
-                    <Link href={route('feedback.replies.index', feedback.feedback.id)} className="px-4 py-2 bg-blue-600 text-white rounded-full font-bold shadow hover:bg-blue-700 transition text-xs">Répondre</Link>
+                    <>
+                        <Link href={route('feedback.replies.index', feedback.feedback.id)} className="px-4 py-2 bg-blue-600 text-white rounded-full font-bold shadow hover:bg-blue-700 transition text-xs">Répondre</Link>
+                        <button 
+                            onClick={handleTogglePin}
+                            className={`px-4 py-2 rounded-full font-bold shadow transition text-xs flex items-center gap-1.5 ${
+                                isPinned 
+                                    ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' 
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                            title={isPinned ? 'Désépingler' : 'Épingler'}
+                        >
+                            <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-current' : ''}`} />
+                            {isPinned ? 'Désépingler' : 'Épingler'}
+                        </button>
+                    </>
                 )}
                 <button onClick={() => feedback.onDelete(feedback)} className="px-4 py-2 bg-red-100 text-red-700 rounded-full font-bold shadow hover:bg-red-200 transition text-xs">Supprimer</button>
             </div>

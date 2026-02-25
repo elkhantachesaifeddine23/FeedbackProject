@@ -1,354 +1,10 @@
 import { Head, router } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useEffect, useState } from 'react';
-
-export default function RadarIA({ auth, stats, analysis, lastUpdated, period, trends, signals, recommendedActions, channels, benchmarks, healthScore }) {
-    const [loading, setLoading] = useState(false);
-    const [creatingTask, setCreatingTask] = useState(false);
-    const total = stats?.total || 0;
-    const positiveRate = stats?.positiveRate || 0;
-    const negativeRate = stats?.negativeRate || 0;
-    const neutralRate = total > 0 ? Math.max(0, 100 - positiveRate - negativeRate) : 0;
-
-    useEffect(() => {
-        const start = () => setLoading(true);
-        const finish = () => setLoading(false);
-
-        const offStart = router.on('start', start);
-        const offFinish = router.on('finish', finish);
-
-        return () => {
-            offStart();
-            offFinish();
-        };
-    }, []);
-
-    const handleCreateTask = (action) => {
-        if (!action?.title) {
-            return;
-        }
-
-        const priority = (action.priority || '').toUpperCase();
-        const importance = priority === 'P0' ? 'high' : priority === 'P1' ? 'medium' : 'low';
-
-        const contextLines = [];
-        if (action.context?.signal_title) {
-            contextLines.push(`Signal: ${action.context.signal_title}`);
-        }
-        if (action.context?.signal_detail) {
-            contextLines.push(`Détail: ${action.context.signal_detail}`);
-        }
-        if (Array.isArray(action.context?.evidence) && action.context.evidence.length) {
-            contextLines.push('Exemples:');
-            action.context.evidence.slice(0, 3).forEach((e) => {
-                contextLines.push(`- ${e}`);
-            });
-        }
-
-        const description = [action.detail, ...contextLines].filter(Boolean).join('\n');
-
-        setCreatingTask(true);
-
-        router.post(
-            route('tasks.store'),
-            {
-                title: action.title,
-                description: description || null,
-                importance,
-            },
-            {
-                preserveScroll: true,
-                onFinish: () => setCreatingTask(false),
-            }
-        );
-    };
-
-    return (
-        <AuthenticatedLayout user={auth.user} header="Radar IA">
-            <Head title="Radar IA" />
-
-            <div className="space-y-6">
-                {loading && (
-                    <div className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
-                        <Spinner />
-                        <span>Analyse en cours… merci de patienter quelques secondes.</span>
-                    </div>
-                )}
-                <div className="rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg border border-indigo-500/40 p-6">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <h1 className="text-2xl sm:text-3xl font-bold text-white">Radar IA — Entreprise</h1>
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-white border border-white/20">
-                                    {period?.days ?? 30}j
-                                </span>
-                            </div>
-                            <p className="mt-2 text-sm text-indigo-50/90">
-                                Période: <span className="font-semibold text-white">{period?.from}</span> → <span className="font-semibold text-white">{period?.to}</span>
-                            </p>
-                            <div className="mt-2 flex items-center gap-2 flex-wrap">
-                                <span className="text-xs text-indigo-50/90">
-                                    Dernière mise à jour: <span className="font-semibold text-white">{lastUpdated}</span>
-                                </span>
-                                <span className="hidden sm:inline text-white/40">•</span>
-                                <span className="text-xs text-indigo-50/90">
-                                    Confiance: <span className="font-semibold text-white">{analysis?.confidence || '—'}</span>
-                                </span>
-                            </div>
-                        </div>
-                        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border ${
-                            analysis?.cached 
-                                ? 'bg-emerald-500/10 text-white border-emerald-300/40' 
-                                : 'bg-white/10 text-white border-white/30'
-                        }`}>
-                            <span className={`w-2 h-2 rounded-full ${analysis?.cached ? 'bg-emerald-400' : 'bg-white animate-pulse'}`} />
-                            {analysis?.cached ? '✓ Mise en cache' : 'Analyse en cours'}
-                        </div>
-                    </div>
-                    <div className="mt-4 flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => window.location.assign(route('radar.export', { days: period?.days ?? 30, format: 'csv' }))}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 text-sm font-semibold hover:bg-indigo-50 transition-colors"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            Export CSV
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => window.location.assign(route('radar.export', { days: period?.days ?? 30, format: 'pdf' }))}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            Export PDF
-                        </button>
-                    </div>
-                </div>
-
-                {/* Indicateur de cache */}
-                {analysis?.cached && (
-                    <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-green-800 text-sm">
-                        <strong>✅ Analyse en cache:</strong> Les mêmes feedbacks génèrent instantanément la même analyse. 
-                        <span className="block text-xs mt-1 opacity-75">Mise en cache depuis {analysis?.cached_at}</span>
-                    </div>
-                )}
-
-                {analysis?.status === 'fallback' && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
-                        <strong>Mode local:</strong> {analysis?.note || 'Analyse IA indisponible, affichage d’une analyse locale.'}
-                    </div>
-                )}
-
-                {/* KPI Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Feedbacks analysés" value={total} tone="blue" />
-                    <StatCard title="Positifs" value={stats?.positive || 0} tone="emerald" />
-                    <StatCard title="Négatifs" value={stats?.negative || 0} tone="rose" />
-                    <StatCard title="Neutres" value={stats?.neutral || 0} tone="amber" />
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:col-span-2">
-                        <h3 className="text-lg font-semibold text-gray-900">Résumé exécutif</h3>
-                        <p className="text-sm text-gray-600 mt-1">Synthèse orientée décision</p>
-                        <p className="mt-4 text-gray-700 leading-relaxed">{analysis?.summary || '—'}</p>
-                        {analysis?.note && (
-                            <p className="text-xs text-gray-500 mt-3">Note: {analysis.note}</p>
-                        )}
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h3 className="text-lg font-semibold text-gray-900">Sentiment</h3>
-                        <p className="text-xs text-gray-500">Répartition sur la période</p>
-                        <div className="mt-4">
-                            <SentimentDonut
-                                positive={stats?.positive || 0}
-                                neutral={stats?.neutral || 0}
-                                negative={stats?.negative || 0}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:col-span-2">
-                        <div className="flex items-center justify-between gap-3">
-                            <h3 className="text-lg font-semibold text-gray-900">Tendances clés</h3>
-                            <span className="text-xs text-gray-500">Vs période précédente</span>
-                        </div>
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <TrendCard label="Taux positif" value={trends?.positiveRate?.current} delta={trends?.positiveRate?.delta} unit="%" />
-                            <TrendCard label="Taux négatif" value={trends?.negativeRate?.current} delta={trends?.negativeRate?.delta} unit="%" inverse />
-                            <TrendCard label="Taux de réponse" value={trends?.responseRate?.current} delta={trends?.responseRate?.delta} unit="%" />
-                            <TrendCard label="Note moyenne" value={trends?.avgRating?.current} delta={trends?.avgRating?.delta} unit="" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h3 className="text-lg font-semibold text-gray-900">Health Score</h3>
-                        <p className="text-xs text-gray-500">Synthèse globale (0–100)</p>
-                        <div className="mt-4">
-                            <HealthScoreCard score={healthScore?.score} drivers={healthScore?.drivers} />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900">Benchmarks internes</h3>
-                    <p className="text-xs text-gray-500">Comparaison anonyme vs autres entreprises</p>
-                    <div className="mt-4 overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="text-left text-gray-600">
-                                    <th className="py-2 pr-4">Métrique</th>
-                                    <th className="py-2 pr-4">Vous</th>
-                                    <th className="py-2 pr-4">Médiane</th>
-                                    <th className="py-2">Percentile</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {Object.values(benchmarks || {}).map((b) => (
-                                    <tr key={b.label} className="border-t border-gray-100">
-                                        <td className="py-3 pr-4 font-semibold text-gray-900">{b.label}</td>
-                                        <td className="py-3 pr-4 text-gray-900">{b.company ?? '—'}</td>
-                                        <td className="py-3 pr-4 text-gray-900">{b.median ?? '—'}</td>
-                                        <td className="py-3 text-gray-900">{b.percentile !== null ? `${b.percentile}%` : '—'}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900">Canaux (30j)</h3>
-                    <p className="text-xs text-gray-500">Distribution des demandes</p>
-                    <div className="mt-4">
-                        <ChannelBars channels={channels} />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Signals */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-gray-900">Signaux détectés</h3>
-                            <span className="text-xs text-gray-500">Anomalies & opportunités</span>
-                        </div>
-                        {signals?.length ? (
-                            <ul className="mt-4 space-y-3">
-                                {signals.map((signal, idx) => (
-                                    <li key={`${signal.title}-${idx}`} className="p-4 border border-gray-100 rounded-lg bg-gray-50">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <CategoryBadge category={signal.category} />
-                                                    <SeverityBadge severity={signal.severity} />
-                                                </div>
-                                                <p className="mt-2 font-semibold text-gray-900">{signal.title}</p>
-                                                <p className="text-sm text-gray-600 mt-1">{signal.detail}</p>
-                                                {signal.evidence?.length ? (
-                                                    <div className="mt-3 space-y-2">
-                                                        <p className="text-xs font-semibold text-gray-500">Exemples</p>
-                                                        {signal.evidence.map((e, eidx) => (
-                                                            <div key={`${signal.title}-e-${eidx}`} className="text-xs text-gray-600 bg-white border border-gray-200 rounded-lg px-3 py-2">
-                                                                “{e}”
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : null}
-                                            </div>
-                                            {typeof signal.evidence_count === 'number' && (
-                                                <p className="text-xs text-gray-500">x{signal.evidence_count}</p>
-                                            )}
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p className="mt-3 text-sm text-gray-500">Aucun signal critique détecté.</p>
-                        )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-gray-900">Actions recommandées</h3>
-                            <span className="text-xs text-gray-500">Priorisées</span>
-                        </div>
-                        {recommendedActions?.length ? (
-                            <ul className="mt-4 space-y-3">
-                                {recommendedActions.map((action, idx) => (
-                                    <li key={`${action.title}-${idx}`} className="p-4 border border-gray-100 rounded-lg bg-white">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <p className="font-semibold text-gray-900">{action.title}</p>
-                                                <p className="text-sm text-gray-600 mt-1">{action.detail}</p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {action.priority && (
-                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
-                                                        {action.priority}
-                                                    </span>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    disabled={creatingTask}
-                                                    onClick={() => handleCreateTask(action)}
-                                                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
-                                                >
-                                                    Créer une tâche
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p className="mt-3 text-sm text-gray-500">Aucune action prioritaire pour l’instant.</p>
-                        )}
-                    </div>
-                </div>
-
-                {/* Key Issues Only */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-900">Liste des problèmes à résoudre</h3>
-                        <span className="text-xs text-gray-500">Confiance: {analysis?.confidence || '—'}</span>
-                    </div>
-                    {analysis?.keyIssues?.length ? (
-                        <ul className="mt-4 space-y-3">
-                            {analysis.keyIssues.map((issue, idx) => (
-                                <li key={`${issue.title}-${idx}`} className="p-4 border border-gray-100 rounded-lg bg-gray-50">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div>
-                                            <p className="font-semibold text-gray-900">{issue.title}</p>
-                                            <p className="text-sm text-gray-600 mt-1">{issue.detail}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <ImpactBadge impact={issue.impact} />
-                                            <p className="text-xs text-gray-500 mt-2">{issue.count || 0} mentions</p>
-                                        </div>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="mt-3 text-sm text-gray-500">Aucun problème majeur détecté pour l’instant.</p>
-                    )}
-                </div>
-            </div>
-        </AuthenticatedLayout>
-    );
-}
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { FileText, Download, TrendingUp, AlertCircle, Target, Lightbulb, Award, BarChart3, Brain, Globe } from 'lucide-react';
 
 function SentimentDonut({ positive = 0, neutral = 0, negative = 0 }) {
     const total = Math.max(positive + neutral + negative, 0);
-
     const radius = 16;
     const circumference = 2 * Math.PI * radius;
 
@@ -566,21 +222,6 @@ function HealthScoreCard({ score, drivers }) {
     );
 }
 
-function ImpactBadge({ impact }) {
-    const map = {
-        faible: 'bg-green-100 text-green-700',
-        moyen: 'bg-amber-100 text-amber-700',
-        fort: 'bg-rose-100 text-rose-700',
-    };
-    const tone = map[impact] || 'bg-gray-100 text-gray-600';
-
-    return (
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${tone}`}>
-            {impact || '—'}
-        </span>
-    );
-}
-
 function SeverityBadge({ severity }) {
     const normalized = (severity || '').toLowerCase();
     const style =
@@ -622,5 +263,469 @@ function Spinner() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-50" />
             <span className="relative inline-flex h-5 w-5 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
         </span>
+    );
+}
+
+export default function RadarIA({ auth, stats, analysis, lastUpdated, period, trends, signals, recommendedActions, channels, benchmarks, healthScore }) {
+    const [loading, setLoading] = useState(false);
+    const [creatingTask, setCreatingTask] = useState(false);
+    const [exportingPdf, setExportingPdf] = useState(false);
+    
+    const total = stats?.total || 0;
+    const positiveRate = stats?.positiveRate || 0;
+    const negativeRate = stats?.negativeRate || 0;
+    const neutralRate = total > 0 ? Math.max(0, 100 - positiveRate - negativeRate) : 0;
+
+    useEffect(() => {
+        const start = () => setLoading(true);
+        const finish = () => setLoading(false);
+
+        const offStart = router.on('start', start);
+        const offFinish = router.on('finish', finish);
+
+        return () => {
+            offStart();
+            offFinish();
+        };
+    }, []);
+
+    const handleCreateTask = (action) => {
+        if (!action?.title) {
+            return;
+        }
+
+        const priority = (action.priority || '').toUpperCase();
+        const importance = priority === 'P0' ? 'high' : priority === 'P1' ? 'medium' : 'low';
+
+        const contextLines = [];
+        if (action.context?.signal_title) {
+            contextLines.push(`Signal: ${action.context.signal_title}`);
+        }
+        if (action.context?.signal_detail) {
+            contextLines.push(`Détail: ${action.context.signal_detail}`);
+        }
+        if (Array.isArray(action.context?.evidence) && action.context.evidence.length) {
+            contextLines.push('Exemples:');
+            action.context.evidence.slice(0, 3).forEach((e) => {
+                contextLines.push(`- ${e}`);
+            });
+        }
+
+        const description = [action.detail, ...contextLines].filter(Boolean).join('\n');
+
+        setCreatingTask(true);
+
+        router.post(
+            route('tasks.store'),
+            {
+                title: action.title,
+                description: description || null,
+                importance,
+            },
+            {
+                preserveScroll: true,
+                onFinish: () => setCreatingTask(false),
+            }
+        );
+    };
+
+    const handleExportPdf = () => {
+        setExportingPdf(true);
+        window.location.assign(route('radar.export.pdf', { days: period?.days ?? 30 }));
+        setTimeout(() => setExportingPdf(false), 2000);
+    };
+
+    return (
+        <AuthenticatedLayout user={auth.user} header="Radar IA Global">
+            <Head title="Radar IA Global - Vue Administrateur" />
+
+            <div className="space-y-6 pb-10">
+                {/* Global Admin Banner */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 p-8 shadow-2xl">
+                    <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMC41IiBvcGFjaXR5PSIwLjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30"></div>
+                    <div className="relative flex items-center justify-between gap-4 flex-wrap">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/30">
+                                <Globe className="w-8 h-8 text-white" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-3">
+                                    <h2 className="text-3xl font-black text-white">Radar IA Global</h2>
+                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white text-indigo-600 shadow-lg">
+                                        VUE ADMIN
+                                    </span>
+                                </div>
+                                <p className="mt-2 text-white/90 font-medium">Vue consolidée de toutes les entreprises - Intelligence décisionnelle globale</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Brain className="w-6 h-6 text-blue-200" />
+                            <span className="text-white/90 font-semibold">Période: {period?.days ?? 30}j</span>
+                        </div>
+                    </div>
+                </div>
+
+                {loading && (
+                    <div className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+                        <Spinner />
+                        <span>Analyse en cours… merci de patienter quelques secondes.</span>
+                    </div>
+                )}
+
+                {/* Export Actions */}
+                <div className="flex items-center gap-3 justify-end">
+                    <button
+                        type="button"
+                        onClick={() => window.location.assign(route('radar.export', { days: period?.days ?? 30 }))}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-indigo-700 text-sm font-semibold hover:bg-indigo-50 transition-all shadow-md hover:shadow-lg border border-indigo-200"
+                    >
+                        <Download className="w-4 h-4" />
+                        Export CSV
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleExportPdf}
+                        disabled={exportingPdf}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-semibold hover:from-indigo-700 hover:to-violet-700 transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                    >
+                        {exportingPdf ? (
+                            <>
+                                <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                                <span>Génération...</span>
+                            </>
+                        ) : (
+                            <>
+                                <FileText className="w-4 h-4" />
+                                Rapport PDF
+                            </>
+                        )}
+                    </button>
+                </div>
+
+                {/* Indicateur de cache */}
+                {analysis?.cached && (
+                    <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-green-800 text-sm">
+                        <strong>✅ Analyse en cache:</strong> Les mêmes feedbacks génèrent instantanément la même analyse. 
+                        <span className="block text-xs mt-1 opacity-75">Mise en cache depuis {analysis?.cached_at}</span>
+                    </div>
+                )}
+
+                {analysis?.status === 'fallback' && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
+                        <strong>Mode local:</strong> {analysis?.note || 'Analyse IA indisponible, affichage d\'une analyse locale.'}
+                    </div>
+                )}
+
+                {/* Section Insights Stratégiques */}
+                <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl border-2 border-blue-200 p-8 shadow-xl">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-3 rounded-xl shadow-lg">
+                            <Lightbulb className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-bold text-gray-900">Insights Stratégiques Globaux</h3>
+                            <p className="text-sm text-gray-600">Vue d'ensemble consolidée de la plateforme</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Impact Plateforme */}
+                        <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="bg-green-100 p-2 rounded-lg">
+                                    <TrendingUp className="w-5 h-5 text-green-600" />
+                                </div>
+                                <h4 className="font-bold text-gray-900">Impact Plateforme</h4>
+                            </div>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Taux global satisfaction</span>
+                                    <span className="font-bold text-green-600">{positiveRate.toFixed(1)}%</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Entreprises à risque</span>
+                                    <span className="font-bold text-red-600">{stats?.negative || 0}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Opportunités détectées</span>
+                                    <span className="font-bold text-blue-600">{signals?.filter(s => s.category === 'opportunity').length || 0}</span>
+                                </div>
+                            </div>
+                            <p className="mt-4 text-xs text-gray-500 italic">
+                                {positiveRate > 80 ? "✨ Performance excellente sur la plateforme !" : 
+                                 positiveRate > 60 ? "📊 Performance acceptable. Marges d'amélioration identifiées." :
+                                 "⚠️ Intervention requise sur plusieurs fronts."}
+                            </p>
+                        </div>
+
+                        {/* Santé Globale */}
+                        <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="bg-orange-100 p-2 rounded-lg">
+                                    <AlertCircle className="w-5 h-5 text-orange-600" />
+                                </div>
+                                <h4 className="font-bold text-gray-900">Santé Globale</h4>
+                            </div>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Signaux actifs</span>
+                                    <span className="font-bold text-orange-600">{signals?.length || 0}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Évolution sentiment</span>
+                                    <span className={`font-bold ${trends?.positiveRate?.delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {trends?.positiveRate?.delta >= 0 ? '+' : ''}{trends?.positiveRate?.delta?.toFixed(1) || 0}%
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Actions critiques</span>
+                                    <span className="font-bold text-red-600">{recommendedActions?.filter(a => a.priority === 'P0').length || 0}</span>
+                                </div>
+                            </div>
+                            <p className="mt-4 text-xs text-gray-500 italic">
+                                {signals?.length > 5 ? "🚨 Plusieurs points critiques identifiés." :
+                                 signals?.length > 0 ? "👀 Tendances à surveiller." :
+                                 "✅ Situation stable. Continuez le monitoring."}
+                            </p>
+                        </div>
+
+                        {/* Priorités Actions */}
+                        <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="bg-purple-100 p-2 rounded-lg">
+                                    <Target className="w-5 h-5 text-purple-600" />
+                                </div>
+                                <h4 className="font-bold text-gray-900">Priorités Actions</h4>
+                            </div>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Urgence (P0)</span>
+                                    <span className="font-bold text-red-600">{recommendedActions?.filter(a => a.priority === 'P0').length || 0}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Priorité (P1)</span>
+                                    <span className="font-bold text-orange-600">{recommendedActions?.filter(a => a.priority === 'P1').length || 0}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">À planifier (P2)</span>
+                                    <span className="font-bold text-blue-600">{recommendedActions?.filter(a => a.priority === 'P2').length || 0}</span>
+                                </div>
+                            </div>
+                            <p className="mt-4 text-xs text-gray-500 italic">
+                                💡 Impact potentiel sur satisfaction: +{positiveRate > 70 ? '5 à 10%' : '15 à 25%'} globalement
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Valeur Globale */}
+                    <div className="mt-6 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl p-6 text-white">
+                        <div className="flex items-center justify-between gap-4 flex-wrap">
+                            <div className="flex items-center gap-4">
+                                <BarChart3 className="w-8 h-8" />
+                                <div>
+                                    <h4 className="text-lg font-bold">Valeur Consolidée</h4>
+                                    <p className="text-sm text-white/90">Impact global basé sur les données</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-3xl font-black">{((stats?.negative || 0) * 45).toLocaleString()}€</div>
+                                <p className="text-sm text-white/80">Valeur client à risque</p>
+                                <p className="text-xs text-white/70 mt-1">
+                                    {stats?.negative || 0} clients insatisfaits × 45€ avg
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <StatCard title="Feedbacks analysés" value={total} tone="blue" />
+                    <StatCard title="Positifs" value={stats?.positive || 0} tone="emerald" />
+                    <StatCard title="Négatifs" value={stats?.negative || 0} tone="rose" />
+                    <StatCard title="Neutres" value={stats?.neutral || 0} tone="amber" />
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:col-span-2">
+                        <h3 className="text-lg font-semibold text-gray-900">Résumé exécutif</h3>
+                        <p className="text-sm text-gray-600 mt-1">Analyse consolidée de la plateforme</p>
+                        <p className="mt-4 text-gray-700 leading-relaxed">{analysis?.summary || '—'}</p>
+                        {analysis?.note && (
+                            <p className="text-xs text-gray-500 mt-3">Note: {analysis.note}</p>
+                        )}
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h3 className="text-lg font-semibold text-gray-900">Sentiment Global</h3>
+                        <p className="text-xs text-gray-500">Répartition consolidée</p>
+                        <div className="mt-4">
+                            <SentimentDonut
+                                positive={stats?.positive || 0}
+                                neutral={stats?.neutral || 0}
+                                negative={stats?.negative || 0}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:col-span-2">
+                        <div className="flex items-center justify-between gap-3">
+                            <h3 className="text-lg font-semibold text-gray-900">Tendances clés</h3>
+                            <span className="text-xs text-gray-500">Vs période précédente</span>
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <TrendCard label="Taux positif" value={trends?.positiveRate?.current} delta={trends?.positiveRate?.delta} unit="%" />
+                            <TrendCard label="Taux négatif" value={trends?.negativeRate?.current} delta={trends?.negativeRate?.delta} unit="%" inverse />
+                            <TrendCard label="Taux de réponse" value={trends?.responseRate?.current} delta={trends?.responseRate?.delta} unit="%" />
+                            <TrendCard label="Note moyenne" value={trends?.avgRating?.current} delta={trends?.avgRating?.delta} unit="" />
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h3 className="text-lg font-semibold text-gray-900">Health Score</h3>
+                        <p className="text-xs text-gray-500">Synthèse globale (0–100)</p>
+                        <div className="mt-4">
+                            <HealthScoreCard score={healthScore?.score} drivers={healthScore?.drivers} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900">Benchmarks internes</h3>
+                    <p className="text-xs text-gray-500">Comparaison anonyme vs autres administrateurs</p>
+                    <div className="mt-4 overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead>
+                                <tr className="text-left text-gray-600">
+                                    <th className="py-2 pr-4">Métrique</th>
+                                    <th className="py-2 pr-4">Vous</th>
+                                    <th className="py-2 pr-4">Médiane</th>
+                                    <th className="py-2">Percentile</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {Object.values(benchmarks || {}).map((b) => (
+                                    <tr key={b.label} className="border-t border-gray-100">
+                                        <td className="py-3 pr-4 font-semibold text-gray-900">{b.label}</td>
+                                        <td className="py-3 pr-4 text-gray-900">{b.company ?? '—'}</td>
+                                        <td className="py-3 pr-4 text-gray-900">{b.median ?? '—'}</td>
+                                        <td className="py-3 text-gray-900">{b.percentile !== null ? `${b.percentile}%` : '—'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900">Canaux (30j)</h3>
+                    <p className="text-xs text-gray-500">Distribution consolidée des demandes</p>
+                    <div className="mt-4">
+                        <ChannelBars channels={channels} />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Signals */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-gray-900">Signaux détectés</h3>
+                            <span className="text-xs text-gray-500">Anomalies & opportunités</span>
+                        </div>
+                        {signals?.length ? (
+                            <ul className="mt-4 space-y-3">
+                                {signals.map((signal, idx) => (
+                                    <li key={`${signal.title}-${idx}`} className="p-4 border border-gray-100 rounded-lg bg-gray-50">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <CategoryBadge category={signal.category} />
+                                                    <SeverityBadge severity={signal.severity} />
+                                                </div>
+                                                <p className="mt-2 font-semibold text-gray-900">{signal.title}</p>
+                                                <p className="text-sm text-gray-600 mt-1">{signal.detail}</p>
+                                                {signal.evidence?.length ? (
+                                                    <div className="mt-3 space-y-2">
+                                                        <p className="text-xs font-semibold text-gray-500">Exemples</p>
+                                                        {signal.evidence.map((e, eidx) => (
+                                                            <div key={`${signal.title}-e-${eidx}`} className="text-xs text-gray-600 bg-white border border-gray-200 rounded-lg px-3 py-2">
+                                                                "{e}"
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                            {typeof signal.evidence_count === 'number' && (
+                                                <p className="text-xs text-gray-500">x{signal.evidence_count}</p>
+                                            )}
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="mt-3 text-sm text-gray-500">Aucun signal critique détecté.</p>
+                        )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-gray-900">Actions recommandées</h3>
+                            <span className="text-xs text-gray-500">Priorisées</span>
+                        </div>
+                        {recommendedActions?.length ? (
+                            <ul className="mt-4 space-y-3">
+                                {recommendedActions.map((action, idx) => (
+                                    <li key={`${action.title}-${idx}`} className="p-4 border border-gray-100 rounded-lg bg-white">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-gray-900">{action.title}</p>
+                                                <p className="text-sm text-gray-600 mt-1">{action.detail}</p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {action.priority && (
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                                                        {action.priority}
+                                                    </span>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    disabled={creatingTask}
+                                                    onClick={() => handleCreateTask(action)}
+                                                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                                                >
+                                                    Créer une tâche
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="mt-3 text-sm text-gray-500">Aucune action prioritaire pour l'instant.</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Résumé IA des feedbacks */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="bg-blue-100 p-3 rounded-lg">
+                            <Brain className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900">Résumé IA des feedbacks</h3>
+                            <p className="text-sm text-gray-500">Synthèse automatique basée sur les avis existants</p>
+                        </div>
+                    </div>
+                    <p className="text-gray-700 leading-relaxed">{analysis?.summary || 'Analyse IA indisponible pour le moment.'}</p>
+                    {analysis?.note && (
+                        <p className="text-xs text-gray-500 mt-3">Note: {analysis.note}</p>
+                    )}
+                </div>
+            </div>
+        </AuthenticatedLayout>
     );
 }

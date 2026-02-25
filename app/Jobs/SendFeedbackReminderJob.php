@@ -3,14 +3,14 @@
 namespace App\Jobs;
 
 use App\Models\FeedbackRequest;
-use App\Services\BrevoService;
+use App\Services\ReminderService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-class SendFeedbackRequestEmail implements ShouldQueue
+class SendFeedbackReminderJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -18,12 +18,8 @@ class SendFeedbackRequestEmail implements ShouldQueue
         public FeedbackRequest $feedbackRequest
     ) {}
 
-    public function handle(): void
+    public function handle(ReminderService $reminderService): void
     {
-        app(BrevoService::class)->sendFeedbackEmail($this->feedbackRequest);
-
-        $this->feedbackRequest->update([
-            'status' => 'sent',
-        ]);
+        $reminderService->sendReminder($this->feedbackRequest);
     }
 }

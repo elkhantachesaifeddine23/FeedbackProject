@@ -2,7 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm } from '@inertiajs/react';
 import { Building2, Briefcase, MapPin, Link as LinkIcon, Save, Loader2, ExternalLink, HelpCircle, CheckCircle2 } from 'lucide-react';
 
-export default function Edit({ auth, company }) {
+export default function Edit({ auth, company, stats }) {
     const { data, setData, put, processing, errors } = useForm({
         name: company?.name || '',
         sector: company?.sector || '',
@@ -83,15 +83,15 @@ export default function Edit({ auth, company }) {
                         {/* Statistiques synthétiques */}
                         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl p-6 shadow-md flex flex-col items-center">
-                                <span className="text-2xl font-bold text-indigo-700">4.8</span>
+                                <span className="text-2xl font-bold text-indigo-700">{stats?.avgRating ?? '—'}</span>
                                 <span className="text-sm text-gray-600 mt-2">Note moyenne</span>
                             </div>
                             <div className="bg-gradient-to-br from-pink-100 to-orange-100 rounded-2xl p-6 shadow-md flex flex-col items-center">
-                                <span className="text-2xl font-bold text-pink-700">120</span>
+                                <span className="text-2xl font-bold text-pink-700">{stats?.totalFeedbacks ?? '—'}</span>
                                 <span className="text-sm text-gray-600 mt-2">Feedbacks reçus</span>
                             </div>
                             <div className="bg-gradient-to-br from-green-100 to-blue-100 rounded-2xl p-6 shadow-md flex flex-col items-center">
-                                <span className="text-2xl font-bold text-green-700">95%</span>
+                                <span className="text-2xl font-bold text-green-700">{stats?.completionRate ?? '—'}%</span>
                                 <span className="text-sm text-gray-600 mt-2">Taux de complétion</span>
                             </div>
                         </div>

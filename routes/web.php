@@ -16,7 +16,8 @@ use App\Http\Controllers\{
     ReviewPlatformController,
     SettingsController,
     TaskController,
-    HealthController
+    HealthController,
+    BrevoTestController
 };
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminRadarController;
@@ -89,6 +90,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Suppression d'un feedback
     Route::delete('/feedbacks/{id}', [FeedbackController::class, 'destroy'])
         ->name('feedbacks.destroy');
+
+    // Épingler/Désépingler un feedback
+    Route::post('/feedbacks/{id}/toggle-pin', [FeedbackController::class, 'togglePin'])
+        ->name('feedbacks.togglePin');
 
     // Configuration du design de la page feedback
     Route::get('/feedback-design', [FeedbackDesignController::class, 'edit'])
@@ -204,6 +209,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     Route::post('/feedback-requests/bulk', [FeedbackRequestController::class, 'storeBulk'])
         ->name('feedback-requests.bulk');
+
+    /*
+    | Brevo diagnostics
+    */
+    Route::prefix('test-brevo')->group(function () {
+        Route::get('/config', [BrevoTestController::class, 'config'])
+            ->name('brevo.config');
+        Route::get('/account', [BrevoTestController::class, 'account'])
+            ->name('brevo.account');
+        Route::get('/sms-credits', [BrevoTestController::class, 'smsCredits'])
+            ->name('brevo.smsCredits');
+        Route::get('/email', [BrevoTestController::class, 'testEmail'])
+            ->name('brevo.email');
+        Route::get('/sms', [BrevoTestController::class, 'testSms'])
+            ->name('brevo.sms');
+        Route::get('/reminder', [BrevoTestController::class, 'testReminder'])
+            ->name('brevo.reminder');
+    });
 });
 
 /*

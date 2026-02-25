@@ -6,6 +6,8 @@ use App\Models\Customer;
 use App\Models\Feedback;
 use App\Models\FeedbackRequest;
 use App\Services\RadarAnalysisService;
+use App\Services\ActionableInsightsService;
+use App\Services\CreditConsumptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -234,6 +236,8 @@ class DashboardController extends Controller
             }
         );
 
+        $stats['sms_credits'] = app(CreditConsumptionService::class)->getSmsCredits($company);
+
         // Compute avg rating & NPS from paginated feedbacks (on-demand)
         $allFeedbacks = Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
             $q->where('company_id', $company->id);
@@ -296,7 +300,7 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function radar(RadarAnalysisService $radarService)
+    public function radar(RadarAnalysisService $radarService, ActionableInsightsService $insightsService)
     {
         $company = Auth::user()->company;
         $data = $this->buildRadarData($company, 30);
@@ -308,9 +312,22 @@ class DashboardController extends Controller
             feedbacksWithComments: $data['feedbacksWithComments']
         );
 
+        // 🎯 EXPERT DATA ENGINEERING: Générer les actions à partir des problèmes détectés
+        $generatedActions = $insightsService->generateActionsFromProblems($analysis, $data);
+        
+        // Fusionner avec les actions channel et sélectionner les top 5 par priorité
+        $allActions = array_merge($data['recommendedActions'], $generatedActions);
+        usort($allActions, function ($a, $b) {
+            $prio = ['P0' => 0, 'P1' => 1, 'P2' => 2];
+            $aPrio = $prio[$a['priority'] ?? 'P2'] ?? 2;
+            $bPrio = $prio[$b['priority'] ?? 'P2'] ?? 2;
+            return $aPrio <=> $bPrio;
+        });
+        $topActions = array_slice($allActions, 0, 5);
+
         $lastUpdated = $analysis['cached_at'] ?? now()->format('Y-m-d H:i');
 
-        if ($analysis['cached']) {
+        if (!empty($analysis['cached'])) {
             $analysis['cacheInfo'] = "Analyse mise en cache depuis " . $analysis['cached_at'];
         }
 
@@ -320,7 +337,8 @@ class DashboardController extends Controller
             'channels' => $data['channels'],
             'trends' => $data['trends'],
             'signals' => $data['signals'],
-            'recommendedActions' => $data['recommendedActions'],
+            'recommendedActions' => $topActions,
+            'allActions' => $allActions, // Pour l'export détaillé
             'benchmarks' => $data['benchmarks'],
             'healthScore' => $data['healthScore'],
             'analysis' => $analysis,
@@ -424,29 +442,46 @@ class DashboardController extends Controller
             }
             fputcsv($output, []);
 
-            fputcsv($output, ['Actions recommandées', 'Priorité', 'Détail', 'Contexte']);
-            foreach ($data['recommendedActions'] as $action) {
-                $context = '';
-                if (! empty($action['context'])) {
-                    $contextParts = [];
-                    if (! empty($action['context']['signal_title'])) {
-                        $contextParts[] = 'Signal: ' . $action['context']['signal_title'];
-                    }
-                    if (! empty($action['context']['signal_detail'])) {
-                        $contextParts[] = 'Détail: ' . $action['context']['signal_detail'];
-                    }
-                    if (! empty($action['context']['evidence']) && is_array($action['context']['evidence'])) {
-                        $contextParts[] = 'Exemples: ' . implode(' | ', $action['context']['evidence']);
-                    }
-                    $context = implode(' / ', $contextParts);
+            fputcsv($output, ['Actions recommandées PRO', 'Priorité', 'Titre', 'Détail', 'Problème source', 'Responsable', 'À suivre', 'Timeline', 'Mentions']);
+            if (!empty($allActions) && is_array($allActions)) {
+                foreach ($allActions as $action) {
+                    fputcsv($output, [
+                        $action['priority'] ?? 'P2',
+                        $action['title'] ?? '',
+                        $action['detail'] ?? '',
+                        $action['problem_source'] ?? '',
+                        $action['owner_role'] ?? '',
+                        $action['kpi_to_track'] ?? '',
+                        $action['timeline'] ?? '',
+                        $action['mention_count'] ?? 0,
+                    ]);
                 }
-                fputcsv($output, [
-                    $action['title'] ?? '',
-                    $action['priority'] ?? '',
-                    $action['detail'] ?? '',
-                    $context,
-                ]);
+            } else {
+                // Fallback: exporter les actions basiques si allActions n'existe pas
+                foreach ($data['recommendedActions'] as $action) {
+                    $context = '';
+                    if (! empty($action['context'])) {
+                        $contextParts = [];
+                        if (! empty($action['context']['signal_title'])) {
+                            $contextParts[] = 'Signal: ' . $action['context']['signal_title'];
+                        }
+                        if (! empty($action['context']['signal_detail'])) {
+                            $contextParts[] = 'Détail: ' . $action['context']['signal_detail'];
+                        }
+                        if (! empty($action['context']['evidence']) && is_array($action['context']['evidence'])) {
+                            $contextParts[] = 'Exemples: ' . implode(' | ', $action['context']['evidence']);
+                        }
+                        $context = implode(' / ', $contextParts);
+                    }
+                    fputcsv($output, [
+                        $action['priority'] ?? 'P2',
+                        $action['title'] ?? '',
+                        $action['detail'] ?? '',
+                        $context,
+                    ]);
+                }
             }
+            fputcsv($output, []);
 
             fclose($output);
         }, $filename, [
@@ -479,6 +514,7 @@ class DashboardController extends Controller
             ->whereHas('feedbackRequest', function ($q) use ($company) {
                 $q->where('company_id', $company->id);
             })
+            ->notResolved()
             ->whereBetween('created_at', [$periodStart, $periodEnd])
             ->get();
 
@@ -486,6 +522,7 @@ class DashboardController extends Controller
             ->whereHas('feedbackRequest', function ($q) use ($company) {
                 $q->where('company_id', $company->id);
             })
+            ->notResolved()
             ->whereBetween('created_at', [$prevPeriodStart, $prevPeriodEnd])
             ->get();
 
@@ -493,6 +530,7 @@ class DashboardController extends Controller
             ->whereHas('feedbackRequest', function ($q) use ($company) {
                 $q->where('company_id', $company->id);
             })
+            ->notResolved()
             ->whereNotNull('comment')
             ->with(['feedbackRequest.customer'])
             ->whereBetween('created_at', [$periodStart, $periodEnd])
@@ -567,17 +605,31 @@ class DashboardController extends Controller
         $signals = [];
         $recommendedActions = [];
 
-        $negativeEvidence = $analysisFeedbacks
-            ->filter(fn ($f) => $f->rating !== null && $f->rating <= 2)
+        // Collect negative and positive feedbacks
+        $negativeFeedbacks = $analysisFeedbacks->filter(fn ($f) => $f->rating !== null && $f->rating <= 2);
+        $positiveFeedbacks = $analysisFeedbacks->filter(fn ($f) => $f->rating !== null && $f->rating >= 4);
+
+        $negativeEvidence = $negativeFeedbacks
             ->take(3)
             ->map(fn ($f) => str($f->comment)->limit(160)->toString())
             ->values()
             ->all();
 
-        $positiveEvidence = $analysisFeedbacks
-            ->filter(fn ($f) => $f->rating !== null && $f->rating >= 4)
+        $negativeIds = $negativeFeedbacks
+            ->pluck('id')
+            ->take(3)
+            ->values()
+            ->all();
+
+        $positiveEvidence = $positiveFeedbacks
             ->take(3)
             ->map(fn ($f) => str($f->comment)->limit(160)->toString())
+            ->values()
+            ->all();
+
+        $positiveIds = $positiveFeedbacks
+            ->pluck('id')
+            ->take(3)
             ->values()
             ->all();
 
@@ -599,6 +651,7 @@ class DashboardController extends Controller
                     'signal_title' => 'Hausse du taux négatif',
                     'signal_detail' => "Taux négatif en hausse de {$negativeDelta} points vs période précédente.",
                     'evidence' => $negativeEvidence,
+                    'feedback_ids' => $negativeIds,
                 ],
             ];
         }
@@ -660,6 +713,7 @@ class DashboardController extends Controller
                     'signal_title' => 'Progression de la satisfaction',
                     'signal_detail' => "Taux positif en hausse de {$positiveDelta} points.",
                     'evidence' => $positiveEvidence,
+                    'feedback_ids' => $positiveIds,
                 ],
             ];
         }

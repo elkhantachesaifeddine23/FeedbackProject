@@ -22,6 +22,7 @@ class FeedbackController extends Controller
         $feedbacks = FeedbackRequest::where('company_id', $company->id)
             ->whereHas('customer')
             ->with(['customer', 'feedback'])
+            ->orderByRaw('COALESCE((SELECT is_pinned FROM feedback WHERE feedback.feedback_request_id = feedback_requests.id), false) DESC')
             ->latest()
             ->paginate(15)
             ->through(fn ($f) => [
@@ -38,6 +39,7 @@ class FeedbackController extends Controller
                     'id' => $f->feedback?->id,
                     'rating' => $f->feedback?->rating,
                     'comment' => $f->feedback?->comment,
+                    'is_pinned' => $f->feedback?->is_pinned ?? false,
                 ],
                 'created_at' => $f->created_at->format('Y-m-d H:i'),
             ]);
@@ -290,5 +292,25 @@ class FeedbackController extends Controller
             $feedbackRequest->feedback->delete();
         }
         return redirect()->route('feedbacks.index')->with('success', 'Feedback supprimé');
+    }
+
+    /**
+     * Épingler/Désépingler un feedback (admin)
+     */
+    public function togglePin($id)
+    {
+        $feedback = Feedback::findOrFail($id);
+        
+        // Vérifier que l'utilisateur appartient à la même company
+        $feedbackRequest = $feedback->feedbackRequest()->with('company')->first();
+        
+        if ($feedbackRequest->company_id !== Auth::user()->company_id) {
+            abort(403, 'Unauthorized');
+        }
+
+        $feedback->is_pinned = !$feedback->is_pinned;
+        $feedback->save();
+
+        return back()->with('success', $feedback->is_pinned ? 'Feedback épinglé' : 'Feedback désépinglé');
     }
 }
