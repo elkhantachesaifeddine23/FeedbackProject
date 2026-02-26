@@ -90,11 +90,11 @@ class AuthenticatedSessionController extends Controller
 
         $code = (string) random_int(100000, 999999);
 
-        // Stockage éphémère du code (hashé) pour 30s
+        // Stockage éphémère du code (hashé) pour 2 minutes
         Cache::put(
             $this->twoFactorCacheKey($credentials['email']),
             ['hash' => Hash::make($code)],
-            now()->addSeconds(30)
+            now()->addMinutes(2)
         );
 
         // On mémorise l'intention de connexion pour la phase 2FA
@@ -108,7 +108,7 @@ class AuthenticatedSessionController extends Controller
 
         Log::info('Code 2FA envoyé pour : '.$credentials['email']);
 
-        return redirect()->route('admin.2fa.show')->with('status', 'Code de vérification envoyé par email (valide 30 secondes).');
+        return redirect()->route('admin.2fa.show')->with('status', 'Code de vérification envoyé par email (valide 2 minutes).');
     }
 
     private function twoFactorCacheKey(string $email): string
