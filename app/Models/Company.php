@@ -52,4 +52,9 @@ class Company extends Model
     {
         return $this->hasOne(CompanyResponsePolicy::class);
     }
+
+    public function feedbackTemplates()
+    {
+        return $this->hasMany(FeedbackTemplate::class);
+    }
 }

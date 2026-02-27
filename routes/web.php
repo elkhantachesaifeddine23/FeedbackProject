@@ -11,6 +11,7 @@ use App\Http\Controllers\{
     FeedbackController,
     FeedbackDesignController,
     FeedbackRequestController,
+    FeedbackTemplateController,
     ProfileController,
     FeedbackReplyController,
     ReviewPlatformController,
@@ -209,6 +210,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     Route::post('/feedback-requests/bulk', [FeedbackRequestController::class, 'storeBulk'])
         ->name('feedback-requests.bulk');
+    
+    Route::get('/feedback-requests/send', [FeedbackRequestController::class, 'sendPage'])
+        ->name('feedback-requests.send');
+    
+    Route::post('/feedback-requests/send-with-template', [FeedbackRequestController::class, 'sendWithTemplate'])
+        ->name('feedback-requests.sendWithTemplate');
+
+    /*
+    | Feedback Templates
+    */
+    Route::get('/feedback-templates', [FeedbackTemplateController::class, 'index'])
+        ->name('feedback-templates.index');
+    
+    Route::get('/feedback-templates/default', [FeedbackTemplateController::class, 'getDefault'])
+        ->name('feedback-templates.default');
+    
+    Route::post('/feedback-templates', [FeedbackTemplateController::class, 'store'])
+        ->name('feedback-templates.store');
+    
+    Route::put('/feedback-templates/{template}', [FeedbackTemplateController::class, 'update'])
+        ->name('feedback-templates.update');
+    
+    Route::delete('/feedback-templates/{template}', [FeedbackTemplateController::class, 'destroy'])
+        ->name('feedback-templates.destroy');
 
     /*
     | Brevo diagnostics

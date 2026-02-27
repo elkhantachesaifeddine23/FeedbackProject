@@ -11,6 +11,7 @@ use App\Mail\FeedbackRequestMail;
 use App\Services\BrevoService;
 use App\Services\AIReplyService;
 use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
 
 class FeedbackRequestController extends Controller
 {
@@ -350,5 +351,169 @@ class FeedbackRequestController extends Controller
         // Retourner l'image
         return response($result->getString())
             ->header('Content-Type', $result->getMimeType());
+    }
+
+    /**
+     * Page d'envoi de feedbacks avec templates
+     */
+    public function sendPage()
+    {
+        $company = Auth::user()->company;
+
+        $customers = \App\Models\Customer::where('company_id', $company->id)
+            ->with(['feedbackRequests' => function ($query) {
+                $query->latest()->limit(1);
+            }])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return Inertia::render('FeedbackRequests/Send', [
+            'customers' => $customers,
+            'companyName' => $company->name,
+        ]);
+    }
+
+    /**
+     * Envoyer des feedbacks avec template personnalisé
+     */
+    public function sendWithTemplate(Request $request)
+    {
+        $data = $request->validate([
+            'customer_ids' => 'required|array|min:1',
+            'customer_ids.*' => 'exists:customers,id',
+            'channel' => 'required|in:sms,email,qr',
+            'message' => 'required|string',
+            'subject' => 'nullable|string',
+        ]);
+
+        $company = Auth::user()->company;
+        $successCount = 0;
+        $errorCount = 0;
+        $errors = [];
+
+        foreach ($data['customer_ids'] as $customerId) {
+            try {
+                $customer = \App\Models\Customer::findOrFail($customerId);
+
+                // Vérifier que le client appartient à l'entreprise
+                if ($customer->company_id !== $company->id) {
+                    continue;
+                }
+
+                // Vérifier si un feedback est déjà en cours
+                $alreadySent = FeedbackRequest::where('customer_id', $customerId)
+                    ->where('company_id', $company->id)
+                    ->where('channel', $data['channel'])
+                    ->whereIn('status', ['pending', 'sent'])
+                    ->exists();
+
+                if ($alreadySent) {
+                    continue;
+                }
+
+                // Créer la demande
+                $feedbackRequest = FeedbackRequest::create([
+                    'company_id' => $company->id,
+                    'customer_id' => $customerId,
+                    'channel' => $data['channel'],
+                    'token' => \Illuminate\Support\Str::uuid(),
+                    'status' => 'pending',
+                    'sent_at' => null,
+                ]);
+
+                // Préparer les variables pour le template
+                $link = rtrim(config('app.url'), '/') . '/feedback/' . $feedbackRequest->token;
+                $variables = [
+                    'Nom' => $customer->name ?? 'Client',
+                    'Nom de l\'entreprise' => $company->name,
+                    'Votre lien' => $link,
+                ];
+
+                // Remplacer les variables dans le message
+                $message = $data['message'];
+                foreach ($variables as $key => $value) {
+                    $message = str_replace('{' . $key . '}', $value, $message);
+                }
+
+                // Envoyer selon le canal
+                if ($data['channel'] === 'email') {
+                    if (empty($customer->email)) {
+                        $errorCount++;
+                        $errors[] = "Client {$customer->name}: pas d'email";
+                        continue;
+                    }
+
+                    try {
+                        // Remplacer les variables dans le sujet
+                        $subject = $data['subject'] ?? "Votre avis nous intéresse";
+                        foreach ($variables as $key => $value) {
+                            $subject = str_replace('{' . $key . '}', $value, $subject);
+                        }
+
+                        // Envoyer l'email avec le message personnalisé
+                        \Illuminate\Support\Facades\Mail::raw($message, function ($mail) use ($customer, $subject) {
+                            $mail->to($customer->email)
+                                ->subject($subject);
+                        });
+
+                        $feedbackRequest->update([
+                            'status' => 'sent',
+                            'sent_at' => now(),
+                        ]);
+
+                        $successCount++;
+                    } catch (\Throwable $e) {
+                        $feedbackRequest->update(['status' => 'failed']);
+                        $errorCount++;
+                        $errors[] = "Email pour {$customer->email}: {$e->getMessage()}";
+                    }
+                } elseif ($data['channel'] === 'sms') {
+                    if (empty($customer->phone)) {
+                        $errorCount++;
+                        $errors[] = "Client {$customer->name}: pas de téléphone";
+                        continue;
+                    }
+
+                    try {
+                        $sms = app(BrevoService::class)->sendSms($customer->phone, $message);
+
+                        $feedbackRequest->update([
+                            'status' => 'sent',
+                            'sent_at' => now(),
+                            'provider' => 'brevo',
+                            'provider_message_id' => $sms['messageId'] ?? null,
+                            'provider_response' => json_encode($sms),
+                        ]);
+
+                        $successCount++;
+                    } catch (\Throwable $e) {
+                        $feedbackRequest->update(['status' => 'failed']);
+                        $errorCount++;
+                        $errors[] = "SMS pour {$customer->phone}: {$e->getMessage()}";
+                    }
+                } elseif ($data['channel'] === 'qr') {
+                    // Pour QR, on marque juste comme créé
+                    $feedbackRequest->update([
+                        'status' => 'sent',
+                        'sent_at' => now(),
+                    ]);
+                    $successCount++;
+                }
+            } catch (\Throwable $e) {
+                $errorCount++;
+                $errors[] = "Client ID {$customerId}: {$e->getMessage()}";
+            }
+        }
+
+        $message = "$successCount demandes envoyées avec succès";
+        if ($errorCount > 0) {
+            $message .= ", $errorCount erreurs";
+        }
+
+        if ($errorCount > 0 && count($errors) > 0) {
+            return back()->with('success', $message)->withErrors(['send_errors' => $errors]);
+        }
+
+        return back()->with('success', $message);
     }
 }

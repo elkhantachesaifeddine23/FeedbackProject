@@ -123,6 +123,7 @@ export default function AuthenticatedLayout({ user, header, children }) {
         { name: 'Dashboard', href: 'dashboard', icon: HomeIcon, current: route().current('dashboard'), enabled: true, section: 'main' },
         { name: 'Radar IA', href: 'radar', icon: RadarIcon, current: route().current('radar'), enabled: true, section: 'main', badge: 'NEW' },
         { name: 'Tâches', href: 'tasks.index', icon: TaskIcon, current: route().current('tasks.*'), enabled: true, section: 'main' },
+        { name: 'Demande d\'avis', href: 'feedback-requests.send', icon: SendIcon, current: route().current('feedback-requests.*'), enabled: true, section: 'gestion', badge: 'NEW' },
         { name: 'Clients', href: 'customers.index', icon: UsersIcon, current: route().current('customers.*'), enabled: true, section: 'gestion' },
         { name: 'Feedbacks', href: 'feedbacks.index', icon: ChatIcon, current: route().current('feedbacks.*'), enabled: true, section: 'gestion' },
         { name: "Plateformes d'avis", href: 'review-platforms.index', icon: StarIcon, current: route().current('review-platforms.*'), enabled: true, section: 'gestion' },
@@ -370,6 +371,14 @@ function TaskIcon({ className }) {
     return (
         <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 11l3 3L22 4M2 12a10 10 0 1010-10" />
+        </svg>
+    );
+}
+
+function SendIcon({ className }) {
+    return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
         </svg>
     );
 }
