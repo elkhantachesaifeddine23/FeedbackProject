@@ -1,5 +1,5 @@
 import { Link, router } from '@inertiajs/react';
-import { Pin } from 'lucide-react';
+import { Pin, Mail, MessageSquare, QrCode } from 'lucide-react';
 
 function getInitials(name, email) {
     if (!name && !email) return '?';
@@ -19,9 +19,42 @@ function RatingStars({ value = 0 }) {
     );
 }
 
+function GoogleLogoIcon() {
+    return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.5 3.8-5.4 3.8-3.2 0-5.9-2.7-5.9-5.9s2.7-5.9 5.9-5.9c1.8 0 3 .8 3.7 1.5l2.5-2.4C16.6 3.7 14.5 2.8 12 2.8 6.9 2.8 2.8 6.9 2.8 12S6.9 21.2 12 21.2c6.9 0 9.1-4.8 9.1-7.3 0-.5-.1-.9-.1-1.3H12z"/>
+        </svg>
+    );
+}
+
+function ChannelIconBadge({ channel }) {
+    const map = {
+        email: { icon: Mail, label: 'Email', className: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
+        sms: { icon: MessageSquare, label: 'SMS', className: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+        whatsapp: { icon: MessageSquare, label: 'WhatsApp', className: 'text-green-600 bg-green-50 border-green-200' },
+        qr: { icon: QrCode, label: 'QR', className: 'text-purple-600 bg-purple-50 border-purple-200' },
+    };
+
+    const config = map[channel];
+    if (!config) return null;
+
+    const Icon = config.icon;
+
+    return (
+        <span
+            className={`inline-flex items-center justify-center w-6 h-6 rounded-md border ${config.className}`}
+            title={config.label}
+            aria-label={config.label}
+        >
+            <Icon className="w-3.5 h-3.5" />
+        </span>
+    );
+}
+
 export default function FeedbackCard({ feedback, onReply }) {
     const initials = getInitials(feedback.customer?.name, feedback.customer?.email);
     const isPinned = feedback.feedback?.is_pinned || false;
+    const isGoogleFeedback = feedback.feedback?.source === 'google';
 
     const handleTogglePin = () => {
         if (!feedback.feedback?.id) return;
@@ -56,7 +89,17 @@ export default function FeedbackCard({ feedback, onReply }) {
                     <div className="font-bold text-lg text-gray-900 truncate">{feedback.customer?.name || 'Client supprimé'}</div>
                     <div className="flex items-center gap-2 text-xs text-gray-500 font-medium mt-0.5">
                         <span>{new Date(feedback.created_at).toLocaleDateString('fr-FR', {year: 'numeric', month: 'short', day: 'numeric'})}</span>
-                        {feedback.channel && <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold">{feedback.channel}</span>}
+                        {isGoogleFeedback ? (
+                            <span
+                                className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-white border border-gray-200"
+                                title="Google Business Profile"
+                                aria-label="Google Business Profile"
+                            >
+                                <GoogleLogoIcon />
+                            </span>
+                        ) : (
+                            <ChannelIconBadge channel={feedback.channel} />
+                        )}
                     </div>
                 </div>
                 <div className="flex-shrink-0"><RatingStars value={feedback.feedback?.rating} /></div>

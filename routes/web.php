@@ -18,7 +18,8 @@ use App\Http\Controllers\{
     SettingsController,
     TaskController,
     HealthController,
-    BrevoTestController
+    BrevoTestController,
+    GoogleAuthController
 };
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminRadarController;
@@ -234,6 +235,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     Route::delete('/feedback-templates/{template}', [FeedbackTemplateController::class, 'destroy'])
         ->name('feedback-templates.destroy');
+
+    /*
+    | Google Business Profile OAuth
+    */
+    Route::prefix('google/auth')->name('google.auth.')->group(function () {
+        Route::get('/connect', [GoogleAuthController::class, 'redirect'])
+            ->name('connect');
+        
+        Route::get('/callback', [GoogleAuthController::class, 'callback'])
+            ->name('callback');
+        
+        Route::post('/disconnect', [GoogleAuthController::class, 'disconnect'])
+            ->name('disconnect');
+        
+        Route::post('/sync', [GoogleAuthController::class, 'syncReviews'])
+            ->name('sync');
+    });
 
     /*
     | Brevo diagnostics

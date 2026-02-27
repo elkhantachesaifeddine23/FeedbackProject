@@ -27,6 +27,16 @@ class SettingsController extends Controller
                 'email_verified_at' => $user->email_verified_at,
                 'created_at' => $user->created_at->format('d/m/Y'),
             ],
+            'company' => $user->company ? [
+                'id' => $user->company->id,
+                'name' => $user->company->name,
+                'google_oauth_token' => $user->company->google_oauth_token,
+                'google_oauth_refresh_token' => $user->company->google_oauth_refresh_token,
+                'google_oauth_expires_at' => $user->company->google_oauth_expires_at?->toIso8601String(),
+                'google_business_profile_connected' => $user->company->google_business_profile_connected,
+                'google_business_profile_id' => $user->company->google_business_profile_id,
+                'google_last_sync_at' => $user->company->google_last_sync_at?->toIso8601String(),
+            ] : null,
         ]);
     }
 

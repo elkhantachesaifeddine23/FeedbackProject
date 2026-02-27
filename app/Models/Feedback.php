@@ -17,6 +17,9 @@ class Feedback extends Model
         'is_pinned',
         'resolved_at',
         'resolution_note',
+        'source',
+        'google_review_id',
+        'google_synced_at',
     ];
 
     protected $casts = [
@@ -24,6 +27,7 @@ class Feedback extends Model
         'is_public' => 'boolean',
         'is_pinned' => 'boolean',
         'resolved_at' => 'datetime',
+        'google_synced_at' => 'datetime',
     ];
 
     public function feedbackRequest()

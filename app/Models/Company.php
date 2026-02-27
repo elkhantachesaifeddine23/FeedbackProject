@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Crypt;
 
 class Company extends Model
 {
@@ -17,10 +18,19 @@ class Company extends Model
         'google_review_url',
         'logo_url',
         'design_settings',
+        'google_oauth_token',
+        'google_oauth_refresh_token',
+        'google_oauth_expires_at',
+        'google_business_profile_connected',
+        'google_business_profile_id',
+        'google_last_sync_at',
     ];
 
     protected $casts = [
         'design_settings' => 'array',
+        'google_oauth_expires_at' => 'datetime',
+        'google_last_sync_at' => 'datetime',
+        'google_business_profile_connected' => 'boolean',
     ];
 
     public function user()

@@ -4,7 +4,7 @@ import { Link, router } from '@inertiajs/react';
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import FeedbackCard from '@/Components/FeedbackCard';
-import { QrCode, Download } from 'lucide-react';
+import { QrCode, Download, Mail, MessageSquare } from 'lucide-react';
 
 export default function Index({ auth, feedbacks }) {
 
@@ -256,7 +256,7 @@ function FeedbacksTable({ feedbacks, setQrModalOpen, setSelectedFeedbackForQR })
                                 <StatusBadge status={fb.status} />
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                                <ChannelBadge channel={fb.channel} />
+                                <ChannelBadge channel={fb.channel} source={fb.feedback?.source} />
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                                 {fb.feedback?.rating ? (
@@ -367,40 +367,58 @@ function StatusBadge({ status }) {
     );
 }
 
-function ChannelBadge({ channel }) {
+function ChannelBadge({ channel, source }) {
+    if (source === 'google') {
+        return (
+            <span
+                className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-gray-200"
+                title="Google Business Profile"
+                aria-label="Google Business Profile"
+            >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.5 3.8-5.4 3.8-3.2 0-5.9-2.7-5.9-5.9s2.7-5.9 5.9-5.9c1.8 0 3 .8 3.7 1.5l2.5-2.4C16.6 3.7 14.5 2.8 12 2.8 6.9 2.8 2.8 6.9 2.8 12S6.9 21.2 12 21.2c6.9 0 9.1-4.8 9.1-7.3 0-.5-.1-.9-.1-1.3H12z"/>
+                </svg>
+            </span>
+        );
+    }
+
     const channelConfig = {
         email: {
-            bg: 'bg-gradient-to-r from-indigo-500 to-blue-600',
+            icon: Mail,
             label: 'Email',
-            icon: '📧',
+            className: 'text-indigo-600 bg-indigo-50 border-indigo-200',
         },
         sms: {
-            bg: 'bg-gradient-to-r from-emerald-500 to-teal-600',
+            icon: MessageSquare,
             label: 'SMS',
-            icon: '📱',
+            className: 'text-emerald-600 bg-emerald-50 border-emerald-200',
         },
         whatsapp: {
-            bg: 'bg-gradient-to-r from-green-500 to-emerald-600',
+            icon: MessageSquare,
             label: 'WhatsApp',
-            icon: '💬',
+            className: 'text-green-600 bg-green-50 border-green-200',
         },
         qr: {
-            bg: 'bg-gradient-to-r from-purple-500 to-fuchsia-600',
-            label: 'QR Code',
-            icon: '📲',
+            icon: QrCode,
+            label: 'QR',
+            className: 'text-purple-600 bg-purple-50 border-purple-200',
         },
     };
 
-    const config = channelConfig[channel] || {
-        bg: 'bg-gradient-to-r from-gray-400 to-slate-500',
-        label: '—',
-        icon: '🔗',
-    };
+    const config = channelConfig[channel];
+    if (!config) {
+        return <span className="text-xs text-gray-400">—</span>;
+    }
+
+    const Icon = config.icon;
 
     return (
-        <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-white ${config.bg} shadow-md`}>
-            <span>{config.icon}</span>
-            {config.label}
+        <span
+            className={`inline-flex items-center justify-center w-8 h-8 rounded-lg border ${config.className}`}
+            title={config.label}
+            aria-label={config.label}
+        >
+            <Icon className="w-4 h-4" />
         </span>
     );
 }

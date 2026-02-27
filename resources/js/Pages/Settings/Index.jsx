@@ -2,8 +2,9 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { User, Lock, Trash2, Save, AlertTriangle, CheckCircle, Shield } from 'lucide-react';
+import GoogleBusinessProfileSection from '@/Components/GoogleBusinessProfileSection';
 
-export default function Settings({ auth, user }) {
+export default function Settings({ auth, user, company }) {
     const [activeTab, setActiveTab] = useState('profile');
 
     const profileForm = useForm({
@@ -46,6 +47,7 @@ export default function Settings({ auth, user }) {
     const tabs = [
         { id: 'profile', name: 'Profil', icon: User },
         { id: 'security', name: 'Sécurité', icon: Shield },
+        { id: 'integrations', name: 'Intégrations', icon: Shield },
         { id: 'account', name: 'Compte', icon: Trash2 },
     ];
 
@@ -240,6 +242,13 @@ export default function Settings({ auth, user }) {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                )}
+
+                {/* Integrations Tab */}
+                {activeTab === 'integrations' && (
+                    <div className="space-y-6">
+                        <GoogleBusinessProfileSection company={company} auth={auth} />
                     </div>
                 )}
 

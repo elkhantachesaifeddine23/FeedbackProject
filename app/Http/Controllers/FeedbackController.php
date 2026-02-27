@@ -20,7 +20,6 @@ class FeedbackController extends Controller
         $company = Auth::user()->company;
 
         $feedbacks = FeedbackRequest::where('company_id', $company->id)
-            ->whereHas('customer')
             ->with(['customer', 'feedback'])
             ->orderByRaw('COALESCE((SELECT is_pinned FROM feedback WHERE feedback.feedback_request_id = feedback_requests.id), false) DESC')
             ->latest()
@@ -30,8 +29,9 @@ class FeedbackController extends Controller
                 'feedback_id' => $f->feedback?->id,
                 'token' => $f->token,
                 'customer' => [
-                    'id' => $f->customer->id,
-                    'name' => $f->customer->name,
+                    'id' => $f->customer?->id,
+                    'name' => $f->customer?->name ?? 'Client Google',
+                    'email' => $f->customer?->email,
                 ],
                 'status' => $f->status,
                 'channel' => $f->channel,
@@ -40,6 +40,8 @@ class FeedbackController extends Controller
                     'rating' => $f->feedback?->rating,
                     'comment' => $f->feedback?->comment,
                     'is_pinned' => $f->feedback?->is_pinned ?? false,
+                    'source' => $f->feedback?->source,
+                    'google_review_id' => $f->feedback?->google_review_id,
                 ],
                 'created_at' => $f->created_at->format('Y-m-d H:i'),
             ]);
