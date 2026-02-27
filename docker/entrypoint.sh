@@ -30,6 +30,7 @@ fi
 # Laravel Tasks
 echo "Optimisation de Laravel..."
 php /app/artisan migrate --force --no-interaction || echo "⚠️ Migrations déjà faites ou erreur"
+php /app/artisan db:seed --class=FeedbackTemplateSeeder --force || echo "⚠️ Seeding déjà fait ou erreur"
 php /app/artisan storage:link || true
 php /app/artisan config:clear
 php /app/artisan route:clear
