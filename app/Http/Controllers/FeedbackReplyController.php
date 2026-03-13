@@ -11,6 +11,7 @@ use App\Jobs\GenerateAIReplyJob;
 use App\Jobs\SendFeedbackReplyJob;
 use App\Services\ReplyNotificationService;
 use App\Services\AIReplyService;
+use App\Services\GoogleBusinessProfileService;
 
 class FeedbackReplyController extends Controller
 {
@@ -19,16 +20,28 @@ class FeedbackReplyController extends Controller
     {
         $feedback = Feedback::with([
             'replies',
-            'feedbackRequest.customer'
+            'feedbackRequest.customer',
+            'feedbackRequest.company',
         ])->findOrFail($id);
+
+        $isGoogle = $feedback->source === 'google';
+        $company = $feedback->feedbackRequest?->company;
+        $googleConnected = $company && $company->google_business_profile_connected && $company->google_oauth_token;
 
         return Inertia::render('Feedback/Reply', [
             'feedback' => $feedback,
             'replies'  => $feedback->replies,
+            'replyContext' => [
+                'source' => $feedback->source ?? 'manual',
+                'is_google' => $isGoogle,
+                'google_review_id' => $feedback->google_review_id,
+                'google_connected' => $googleConnected,
+                'has_google_reply' => $isGoogle && $feedback->replies()->whereNotNull('google_published_at')->exists(),
+            ],
         ]);
     }
 
-    // 2️⃣ Créer une réponse manuelle
+    // 2️⃣ Créer une réponse — logique différente selon la source du feedback
 
 public function store(Request $request, int $id)
 {
@@ -36,24 +49,68 @@ public function store(Request $request, int $id)
         'content' => ['required', 'string', 'max:1000'],
     ]);
 
-    $feedback = Feedback::with('feedbackRequest.customer')->findOrFail($id);
+    $feedback = Feedback::with('feedbackRequest.customer', 'feedbackRequest.company')->findOrFail($id);
+    $isGoogle = $feedback->source === 'google';
 
     $reply = FeedbackReply::create([
-    'feedback_id'    => $feedback->id,
-    'responder_type' => 'admin',
-    'responder_id'   => Auth::id(),
-    'content'        => $request->content,
-    'status'         => 'completed', // ✅ conforme à la DB
-   ]);
+        'feedback_id'    => $feedback->id,
+        'responder_type' => 'admin',
+        'responder_id'   => Auth::id(),
+        'content'        => $request->content,
+        'status'         => 'pending',
+    ]);
 
+    if ($isGoogle && $feedback->google_review_id) {
+        // ── Google Business Profile: publier la réponse sur Google ──
+        $company = $feedback->feedbackRequest->company;
 
-    // 🔥 Envoi non bloquant (try/catch)
-    app(ReplyNotificationService::class)
-        ->send($reply);
+        if (!$company || !$company->google_oauth_token) {
+            $reply->update(['status' => 'failed']);
+            return redirect()
+                ->route('dashboard')
+                ->with('error', 'Compte Google non connecté. Impossible de publier la réponse.');
+        }
+
+        try {
+            $gbpService = new GoogleBusinessProfileService($company);
+            $success = $gbpService->replyToReview($feedback->google_review_id, $request->content);
+
+            if ($success) {
+                $reply->update([
+                    'status' => 'completed',
+                    'google_published_at' => now(),
+                ]);
+
+                return redirect()
+                    ->route('dashboard')
+                    ->with('success', 'Réponse publiée sur Google Business Profile ✓');
+            } else {
+                $reply->update(['status' => 'failed']);
+                return redirect()
+                    ->route('dashboard')
+                    ->with('error', 'Échec de la publication sur Google. La réponse a été sauvegardée localement.');
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Google reply failed', [
+                'feedback_id' => $feedback->id,
+                'review_id' => $feedback->google_review_id,
+                'error' => $e->getMessage(),
+            ]);
+            $reply->update(['status' => 'failed']);
+            return redirect()
+                ->route('dashboard')
+                ->with('error', 'Erreur lors de la publication sur Google: ' . $e->getMessage());
+        }
+    } else {
+        // ── Plateforme (email/SMS/WhatsApp/QR): envoyer par email ──
+        $reply->update(['status' => 'completed']);
+
+        app(ReplyNotificationService::class)->send($reply);
 
         return redirect()
-        ->route('dashboard')
-        ->with('success', 'Réponse envoyée avec succès');
+            ->route('dashboard')
+            ->with('success', 'Réponse envoyée au client par email ✓');
+    }
 }
 
     // 3️⃣ Génération IA

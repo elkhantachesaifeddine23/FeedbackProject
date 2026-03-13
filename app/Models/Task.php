@@ -8,6 +8,7 @@ class Task extends Model
 {
     protected $fillable = [
         'company_id',
+        'detected_problem_id',
         'title',
         'description',
         'status',
@@ -34,6 +35,11 @@ class Task extends Model
     public function company()
     {
         return $this->belongsTo(Company::class);
+    }
+
+    public function detectedProblem()
+    {
+        return $this->belongsTo(DetectedProblem::class);
     }
 
     // Helper pour obtenir le label du statut

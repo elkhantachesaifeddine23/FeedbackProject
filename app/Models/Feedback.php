@@ -40,6 +40,12 @@ class Feedback extends Model
         return $this->hasMany(FeedbackReply::class);
     }
 
+    public function detectedProblems()
+    {
+        return $this->belongsToMany(DetectedProblem::class, 'detected_problem_feedback')
+            ->withTimestamps();
+    }
+
     // Scopes
     public function scopeNotResolved($query)
     {

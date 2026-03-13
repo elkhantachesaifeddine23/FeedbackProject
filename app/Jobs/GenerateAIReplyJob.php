@@ -6,6 +6,8 @@ use App\Models\Feedback;
 use App\Models\FeedbackReply;
 use App\Models\CompanyResponsePolicy;
 use App\Services\AIReplyService;
+use App\Services\GoogleBusinessProfileService;
+use App\Services\ReplyNotificationService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -62,10 +64,41 @@ class GenerateAIReplyJob implements ShouldQueue
                 'responder_type' => 'ai',
                 'responder_id' => null,
                 'content' => $replyData['content'],
-                'status' => 'pending', // En attente de review si note basse
+                'status' => 'pending',
                 'provider' => 'gemini',
                 'provider_response' => $replyData['provider_response'],
             ]);
+
+            // ── Dispatch selon la source du feedback ──
+            $isGoogle = $this->feedback->source === 'google' && $this->feedback->google_review_id;
+
+            if ($isGoogle) {
+                // Google Business Profile: publier directement sur Google
+                try {
+                    $gbpService = new GoogleBusinessProfileService($company);
+                    $success = $gbpService->replyToReview($this->feedback->google_review_id, $replyData['content']);
+
+                    $reply->update([
+                        'status' => $success ? 'completed' : 'failed',
+                        'google_published_at' => $success ? now() : null,
+                    ]);
+
+                    Log::info('AI Google reply ' . ($success ? 'published' : 'failed'), [
+                        'reply_id' => $reply->id,
+                        'review_id' => $this->feedback->google_review_id,
+                    ]);
+                } catch (\Exception $e) {
+                    $reply->update(['status' => 'failed']);
+                    Log::error('AI Google reply failed', [
+                        'reply_id' => $reply->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            } else {
+                // Plateforme (email/SMS/WhatsApp/QR): envoyer par email
+                $reply->update(['status' => 'completed']);
+                app(ReplyNotificationService::class)->send($reply);
+            }
 
             Log::info('AI reply generated', [
                 'feedback_request_id' => $feedbackRequest->id,

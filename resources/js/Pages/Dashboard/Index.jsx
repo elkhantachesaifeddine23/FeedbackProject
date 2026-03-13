@@ -2,18 +2,13 @@ import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useState } from 'react';
 import {
-    TrendingUp,
-    TrendingDown,
-    Target,
-    AlertTriangle,
-    Bell,
-    MessageCircle,
-    Send,
-    Eye,
-    CheckCircle2,
+    TrendingUp, TrendingDown, Target, AlertTriangle, Bell, MessageCircle, Send, Eye,
+    CheckCircle2, BarChart3, Bot, UserCheck, Clock, Star, ArrowUpRight,
+    ShieldCheck, Zap, Globe2, Crown, Activity, ListTodo, AlertCircle,
+    ChevronRight, Sparkles, CircleDot, Download, X
 } from 'lucide-react';
 
-export default function Index({ auth, stats, recentFeedbacks, globalQRCode }) {
+export default function Index({ auth, stats, extendedStats = {}, recentFeedbacks, feedbackTrend, globalQRCode }) {
     const [qrModalOpen, setQrModalOpen] = useState(false);
 
     const responseRate = stats.response_rate ?? 0;
@@ -24,87 +19,48 @@ export default function Index({ auth, stats, recentFeedbacks, globalQRCode }) {
     const failedTotal = stats.feedbacks_failed ?? 0;
     const requestsLast7d = stats.requests_last_7d ?? 0;
     const responseRate7d = stats.response_rate_7d ?? 0;
-
     const positiveCount = stats.positive_count ?? 0;
     const neutralCount = stats.neutral_count ?? 0;
     const negativeCount = stats.negative_count ?? 0;
+    const customersCount = stats.customers ?? 0;
+
+    const tasks = extendedStats.tasks ?? { total: 0, open: 0, completed: 0, overdue: 0, critical: 0 };
+    const replies = extendedStats.replies ?? { total: 0, ai: 0, admin: 0, avg_reply_hours: null };
+    const resolution = extendedStats.resolution ?? { resolved: 0, unresolved: 0, pinned: 0, rate: 0 };
+    const sources = extendedStats.sources ?? { manual: 0, google: 0 };
+    const platforms = extendedStats.platforms ?? { active: 0, total: 0 };
+    const subscription = extendedStats.subscription;
+    const google = extendedStats.google ?? { connected: false, last_sync: null };
+    const ratingDistribution = extendedStats.rating_distribution ?? [];
+    const autoReplyEnabled = extendedStats.auto_reply_enabled ?? false;
 
     const feedbackItems = Array.isArray(recentFeedbacks?.data)
         ? recentFeedbacks.data
-        : Array.isArray(recentFeedbacks)
-            ? recentFeedbacks
-            : [];
+        : Array.isArray(recentFeedbacks) ? recentFeedbacks : [];
+
+    const trendData = Array.isArray(feedbackTrend) ? feedbackTrend : [];
+    const maxTrend = Math.max(...trendData.map(d => d.count), 1);
 
     const getInsight = () => {
-        if (responseRate >= 80) {
-            return {
-                tone: 'emerald',
-                title: '🎉 Excellente performance',
-                message: `Votre taux de réponse est à ${responseRate}%. Continuez ainsi!`,
-            };
-        }
-        if (responseRate < 40) {
-            return {
-                tone: 'rose',
-                title: '⚠️ Attention requise',
-                message: `Taux de réponse: ${responseRate}%. Lancez une relance immédiate.`,
-            };
-        }
-        if (avgRating && avgRating >= 4.2) {
-            return {
-                tone: 'indigo',
-                title: '😊 Clients satisfaits',
-                message: `Note moyenne ${avgRating}/5. Excellent!`,
-            };
-        }
-        return {
-            tone: 'amber',
-            title: '💡 Opportunité',
-            message: 'Améliorez la collecte des feedbacks et la rapidité des réponses.',
-        };
+        if (responseRate >= 80) return { tone: 'emerald', icon: '🎉', title: 'Excellente performance', message: `Taux de réponse à ${responseRate}%. Continuez ainsi!` };
+        if (responseRate < 40) return { tone: 'rose', icon: '⚠️', title: 'Attention requise', message: `Taux de réponse: ${responseRate}%. Relancez vos clients.` };
+        if (avgRating && avgRating >= 4.2) return { tone: 'indigo', icon: '😊', title: 'Clients satisfaits', message: `Note moyenne ${avgRating}/5. Excellent!` };
+        return { tone: 'amber', icon: '💡', title: 'Opportunité', message: 'Améliorez la collecte et la rapidité des réponses.' };
     };
-
     const insight = getInsight();
 
     const trends = {
-        requests: totalRequests > 0
-            ? Math.round(((requestsLast7d - totalRequests / 4) / (totalRequests / 4 || 1)) * 100)
-            : null,
+        requests: totalRequests > 0 ? Math.round(((requestsLast7d - totalRequests / 4) / (totalRequests / 4 || 1)) * 100) : null,
         response_rate: Math.round(responseRate7d - responseRate),
         satisfaction: avgRating !== null ? Math.round((avgRating - 4) * 25) : null,
     };
 
-    const goals = {
-        response_rate: {
-            current: responseRate,
-            target: 70,
-            progress: Math.min(100, Math.round((responseRate / 70) * 100)),
-        },
-        avg_response_time: {
-            current: responseRate7d ? Math.max(1, Math.round((100 - responseRate7d) / 10)) : 3,
-            target: 3,
-            progress: responseRate7d ? Math.min(100, Math.round((responseRate7d / 70) * 100)) : 40,
-        },
-        satisfaction: {
-            current: avgRating ?? 0,
-            target: 4.5,
-            progress: avgRating ? Math.min(100, Math.round((avgRating / 4.5) * 100)) : 0,
-        },
+    const planConfig = {
+        free: { label: 'Free', color: 'bg-gray-100 text-gray-600' },
+        starter: { label: 'Starter', color: 'bg-blue-100 text-blue-700' },
+        pro: { label: 'Pro', color: 'bg-purple-100 text-purple-700' },
     };
-
-    const alerts = {
-        critical_feedbacks: responseRate < 50 ? [true] : [],
-        overdue_feedbacks: failedTotal > 0 ? [{ days_since_sent: 7 }] : [],
-        sms_credits: stats.sms_credits ? {
-            remaining: stats.sms_credits.remaining,
-            monthly_quota: stats.sms_credits.quota,
-            monthly_used: stats.sms_credits.used,
-            addon_balance: stats.sms_credits.addons,
-            expires_in_days: stats.sms_credits.expires_in_days,
-            is_low: stats.sms_credits.status === 'warning',
-            is_critical: stats.sms_credits.status === 'critical',
-        } : null,
-    };
+    const plan = subscription ? planConfig[subscription.plan] || planConfig.free : null;
 
     const downloadGlobalQR = () => {
         if (!globalQRCode) return;
@@ -118,108 +74,366 @@ export default function Index({ auth, stats, recentFeedbacks, globalQRCode }) {
 
     return (
         <AuthenticatedLayout user={auth.user} header="Dashboard">
-            <Head title="Dashboard Exécutif" />
+            <Head title="Dashboard" />
 
-            <div className="space-y-8">
-                <div className="relative rounded-3xl overflow-hidden shadow-2xl bg-gradient-to-br from-slate-900 via-indigo-900 to-violet-800">
-                    <div className="absolute inset-0 opacity-10">
-                        <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
-                        <div className="absolute bottom-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
+            <div className="space-y-6">
+                {/* Hero Header */}
+                <div className="relative rounded-2xl overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-900 to-violet-800"></div>
+                    <div className="absolute inset-0">
+                        <div className="absolute -top-32 -right-32 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
+                        <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
                     </div>
-                    <div className="relative p-8 lg:p-10">
-                        <div className="flex flex-wrap items-start justify-between gap-6 mb-6">
-                            <div className="flex-1">
-                                <h1 className="text-4xl font-black text-white mb-2">📊 Dashboard Exécutif</h1>
-                                <p className="text-indigo-100 text-lg">Vue d'ensemble de votre performance client</p>
+                    <div className="relative px-8 py-7">
+                        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                            <div className="flex items-center gap-4">
+                                <div className="w-11 h-11 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center ring-1 ring-white/20">
+                                    <BarChart3 className="w-6 h-6 text-indigo-300" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-3">
+                                        <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard</h1>
+                                        {plan && (
+                                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${plan.color}`}>
+                                                {plan.label}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-indigo-300 text-sm mt-0.5">Vue d'ensemble de votre performance</p>
+                                </div>
                             </div>
-                            <div className={`px-5 py-3 rounded-2xl text-sm font-bold backdrop-blur-sm border-2 max-w-xs ${
-                                insight.tone === 'emerald' ? 'bg-emerald-500/30 border-emerald-400/50 text-white' :
-                                insight.tone === 'rose' ? 'bg-rose-500/30 border-rose-400/50 text-white' :
-                                insight.tone === 'indigo' ? 'bg-indigo-500/40 border-indigo-400/50 text-white' :
-                                'bg-amber-500/30 border-amber-400/50 text-white'
+
+                            <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm backdrop-blur-sm border ${
+                                insight.tone === 'emerald' ? 'bg-emerald-500/15 border-emerald-400/30 text-emerald-200' :
+                                insight.tone === 'rose' ? 'bg-rose-500/15 border-rose-400/30 text-rose-200' :
+                                insight.tone === 'indigo' ? 'bg-indigo-500/20 border-indigo-400/30 text-indigo-200' :
+                                'bg-amber-500/15 border-amber-400/30 text-amber-200'
                             }`}>
-                                <div className="text-xs opacity-80 mb-1 font-semibold">{insight.title}</div>
-                                {insight.message}
+                                <span className="text-base">{insight.icon}</span>
+                                <div>
+                                    <span className="text-xs font-semibold opacity-80">{insight.title}</span>
+                                    <span className="text-xs opacity-70 ml-1.5">— {insight.message}</span>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-8">
-                            <QuickActionButton icon={<Send size={18} />} label="Envoyer feedback" href={route('customers.index')} />
-                            <QuickActionButton icon={<Bell size={18} />} label="Relancer clients" href={route('feedbacks.index')} badge={failedTotal} />
-                            <QuickActionButton icon={<MessageCircle size={18} />} label="Voir feedbacks" href={route('feedbacks.index')} badge={stats.feedbacks_sent} />
-                            <QuickActionButton icon={<Eye size={18} />} label="Analytics" href={route('analytics.index')} />
+                        <div className="flex flex-wrap gap-2">
+                            <QuickAction icon={<Send className="w-4 h-4" />} label="Envoyer feedback" href={route('customers.index')} />
+                            <QuickAction icon={<Bell className="w-4 h-4" />} label="Relancer" href={route('feedbacks.index')} badge={failedTotal} />
+                            <QuickAction icon={<MessageCircle className="w-4 h-4" />} label="Feedbacks" href={route('feedbacks.index')} badge={stats.feedbacks_sent} />
+                            <QuickAction icon={<Eye className="w-4 h-4" />} label="Analytics" href={route('analytics.index')} />
                             {globalQRCode && (
-                                <QuickActionButton icon={<CheckCircle2 size={18} />} label="QR global" onClick={() => setQrModalOpen(true)} />
+                                <QuickAction icon={<CircleDot className="w-4 h-4" />} label="QR global" onClick={() => setQrModalOpen(true)} />
                             )}
                         </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <KPICard title="Taux de réponse" value={`${responseRate}%`} subtext="global" icon="📈" tone="blue" target="70%" trend={trends.response_rate} />
-                    <KPICard title="Volume 7 jours" value={requestsLast7d} subtext="demandes" icon="⏱️" tone="purple" target="+10%" trend={trends.requests} />
-                    <KPICard title="Satisfaction" value={avgRating ? `${avgRating}/5` : '—'} subtext="note moyenne" icon="😊" tone="emerald" target="4.5/5" trend={trends.satisfaction} />
-                    <KPICard title="NPS" value={nps} subtext="Net Promoter Score" icon="🎯" tone="indigo" trend={null} />
+                {/* KPI Row */}
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                    <KPICard title="Clients" value={customersCount} sub={`${completedTotal} réponses`} icon={<UserCheck className="w-5 h-5" />} color="bg-sky-500" />
+                    <KPICard title="Taux de réponse" value={`${responseRate}%`} sub="Cible: 70%" icon={<Activity className="w-5 h-5" />} color="bg-emerald-500" trend={trends.response_rate} />
+                    <KPICard title="Satisfaction" value={avgRating ? `${avgRating}/5` : '—'} sub="Note moyenne" icon={<Star className="w-5 h-5" />} color="bg-amber-500" trend={trends.satisfaction} />
+                    <KPICard title="NPS" value={nps} sub="Net Promoter Score" icon={<Target className="w-5 h-5" />} color="bg-violet-500" />
+                    <KPICard title="Volume 7j" value={requestsLast7d} sub="Demandes envoyées" icon={<TrendingUp className="w-5 h-5" />} color="bg-indigo-500" trend={trends.requests} />
                 </div>
 
-                <AlertsSection alerts={alerts} />
+                {/* Main Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                <TrendsSection trends={trends} stats={{ requests_last_7d: requestsLast7d, response_rate_7d: responseRate7d, avg_rating: avgRating }} />
+                    {/* Col 1-2 */}
+                    <div className="lg:col-span-2 space-y-6">
 
-                <GoalsSection goals={goals} />
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-                        <h3 className="text-lg font-bold text-gray-900 mb-6">Sentiment des clients</h3>
-                        <div className="grid grid-cols-3 gap-4">
-                            <SentimentBadge label="Positif" value={positiveCount} color="emerald" icon="😊" />
-                            <SentimentBadge label="Neutre" value={neutralCount} color="slate" icon="😐" />
-                            <SentimentBadge label="Négatif" value={negativeCount} color="rose" icon="😞" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-                        <h3 className="text-lg font-bold text-gray-900 mb-6">Distribution par canal</h3>
-                        <div className="space-y-3">
-                            <ChannelStat label="📧 Email" value={stats.channel_email || 0} />
-                            <ChannelStat label="📱 SMS" value={stats.channel_sms || 0} />
-                            <ChannelStat label="💬 WhatsApp" value={stats.channel_whatsapp || 0} />
-                            <ChannelStat label="📲 QR Code" value={stats.channel_qr || 0} />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-bold text-gray-900">Derniers feedbacks</h3>
-                        <Link href={route('feedbacks.index')} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Voir tout</Link>
-                    </div>
-                    <div className="space-y-3">
-                        {feedbackItems.slice(0, 5).map((fb) => (
-                            <div key={fb.id} className="flex items-start justify-between gap-3 p-4 rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50 to-white">
-                                <div className="min-w-0 flex-1">
-                                    <div className="font-bold text-gray-900 truncate">{fb.customer?.name}</div>
-                                    <div className="text-xs text-gray-500 mt-1">{fb.created_at}</div>
+                        {/* Sparkline Trend */}
+                        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-900">Activité des 14 derniers jours</h3>
+                                    <p className="text-xs text-gray-500 mt-0.5">{trendData.reduce((a, b) => a + b.count, 0)} feedbacks reçus</p>
                                 </div>
-                                <div className="text-right">
-                                    <span className="text-sm font-semibold text-gray-700">{fb.rating ? `${fb.rating}/5` : '—'}</span>
+                                <Link href={route('analytics.index')} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                                    Détails <ChevronRight className="w-3.5 h-3.5" />
+                                </Link>
+                            </div>
+                            <div className="flex items-end gap-1 h-24">
+                                {trendData.map((d, i) => (
+                                    <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                                        <div
+                                            className="w-full bg-indigo-500/80 rounded-t-sm hover:bg-indigo-600 transition-colors cursor-default min-h-[2px]"
+                                            style={{ height: `${Math.max(2, (d.count / maxTrend) * 100)}%` }}
+                                        />
+                                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
+                                            {d.count} — {new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex justify-between mt-1.5">
+                                <span className="text-[10px] text-gray-400">{trendData[0] ? new Date(trendData[0].date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}</span>
+                                <span className="text-[10px] text-gray-400">Aujourd'hui</span>
+                            </div>
+                        </div>
+
+                        {/* Rating Distribution + Sentiment */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-4">Distribution des notes</h3>
+                                <div className="space-y-2.5">
+                                    {ratingDistribution.map(({ star, count, percent }) => (
+                                        <div key={star} className="flex items-center gap-3">
+                                            <span className="text-xs font-semibold text-gray-500 w-8 text-right">{star} ★</span>
+                                            <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full transition-all ${star >= 4 ? 'bg-emerald-500' : star === 3 ? 'bg-amber-400' : 'bg-rose-500'}`} style={{ width: `${percent}%` }} />
+                                            </div>
+                                            <span className="text-xs text-gray-500 w-14 text-right">{count} ({percent}%)</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                {avgRating && (
+                                    <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                                        <span className="text-xs text-gray-500">Moyenne</span>
+                                        <span className="text-sm font-bold text-gray-900">{avgRating} / 5</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-4">Sentiment des clients</h3>
+                                <div className="space-y-3">
+                                    <SentimentRow label="Positif" count={positiveCount} total={positiveCount + neutralCount + negativeCount} color="emerald" emoji="😊" />
+                                    <SentimentRow label="Neutre" count={neutralCount} total={positiveCount + neutralCount + negativeCount} color="amber" emoji="😐" />
+                                    <SentimentRow label="Négatif" count={negativeCount} total={positiveCount + neutralCount + negativeCount} color="rose" emoji="😞" />
+                                </div>
+                                <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                                    <span className="text-xs text-gray-500">Total avis</span>
+                                    <span className="text-sm font-bold text-gray-900">{positiveCount + neutralCount + negativeCount}</span>
                                 </div>
                             </div>
-                        ))}
+                        </div>
+
+                        {/* Channels + Sources */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-4">Canaux d'envoi</h3>
+                                <div className="space-y-2">
+                                    <ChannelBar label="Email" value={stats.channel_email || 0} total={totalRequests} icon="📧" color="bg-blue-500" />
+                                    <ChannelBar label="SMS" value={stats.channel_sms || 0} total={totalRequests} icon="📱" color="bg-green-500" />
+                                    <ChannelBar label="WhatsApp" value={stats.channel_whatsapp || 0} total={totalRequests} icon="💬" color="bg-emerald-500" />
+                                    <ChannelBar label="QR Code" value={stats.channel_qr || 0} total={totalRequests} icon="📲" color="bg-purple-500" />
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-4">Sources des avis</h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <SourceCard label="Manuel" count={sources.manual} icon="✍️" desc="Via lien/QR/email" />
+                                    <SourceCard label="Google" count={sources.google} icon="🔍" desc="Google Business" />
+                                </div>
+                                {google.connected && (
+                                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                                        <span className="text-xs text-gray-500">Google connecté</span>
+                                        {google.last_sync && (
+                                            <span className="text-xs text-gray-400 ml-auto">
+                                                Sync: {new Date(google.last_sync).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Recent Feedbacks */}
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                                <h3 className="text-sm font-semibold text-gray-900">Derniers feedbacks</h3>
+                                <Link href={route('feedbacks.index')} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                                    Voir tout <ChevronRight className="w-3.5 h-3.5" />
+                                </Link>
+                            </div>
+                            <div className="divide-y divide-gray-50">
+                                {feedbackItems.length > 0 ? feedbackItems.slice(0, 6).map((fb) => (
+                                    <div key={fb.id} className="flex items-center gap-3.5 px-5 py-3 hover:bg-gray-50/50 transition-colors">
+                                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white flex-shrink-0 ${
+                                            fb.rating >= 4 ? 'bg-emerald-500' : fb.rating === 3 ? 'bg-amber-400' : fb.rating ? 'bg-rose-500' : 'bg-gray-300'
+                                        }`}>
+                                            {fb.rating || '?'}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-sm font-medium text-gray-900 truncate block">{fb.customer?.name || 'Anonyme'}</span>
+                                            <span className="text-xs text-gray-400">{fb.created_at}</span>
+                                        </div>
+                                        <StatusPill status={fb.status} />
+                                    </div>
+                                )) : (
+                                    <div className="px-5 py-8 text-center text-sm text-gray-400">
+                                        Aucun feedback reçu pour le moment
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Col 3: Sidebar */}
+                    <div className="space-y-4">
+
+                        {/* Alerts */}
+                        {(failedTotal > 0 || responseRate < 50 || tasks.critical > 0 || tasks.overdue > 0) && (
+                            <div className="bg-rose-50 rounded-xl border border-rose-200 p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <AlertTriangle className="w-4 h-4 text-rose-600" />
+                                    <h3 className="text-sm font-semibold text-rose-900">Alertes</h3>
+                                </div>
+                                <div className="space-y-2">
+                                    {responseRate < 50 && <AlertRow icon="🔴" text="Taux de réponse faible" />}
+                                    {failedTotal > 0 && <AlertRow icon="⏰" text={`${failedTotal} envoi${failedTotal > 1 ? 's' : ''} échoué${failedTotal > 1 ? 's' : ''}`} />}
+                                    {tasks.critical > 0 && <AlertRow icon="🚨" text={`${tasks.critical} tâche${tasks.critical > 1 ? 's' : ''} critique${tasks.critical > 1 ? 's' : ''}`} />}
+                                    {tasks.overdue > 0 && <AlertRow icon="📅" text={`${tasks.overdue} tâche${tasks.overdue > 1 ? 's' : ''} en retard`} />}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* AI & Replies */}
+                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Bot className="w-4 h-4 text-indigo-600" />
+                                <h3 className="text-sm font-semibold text-gray-900">Réponses IA</h3>
+                                {autoReplyEnabled && (
+                                    <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Auto ON</span>
+                                )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mb-3">
+                                <MiniStat label="IA" value={replies.ai} icon={<Zap className="w-3.5 h-3.5 text-purple-500" />} />
+                                <MiniStat label="Manuelles" value={replies.admin} icon={<UserCheck className="w-3.5 h-3.5 text-blue-500" />} />
+                            </div>
+                            {replies.avg_reply_hours !== null && (
+                                <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg">
+                                    <Clock className="w-3.5 h-3.5 text-gray-400" />
+                                    <span className="text-xs text-gray-600">
+                                        Temps moyen: <span className="font-semibold text-gray-900">
+                                            {replies.avg_reply_hours < 1 ? `${Math.round(replies.avg_reply_hours * 60)} min` : `${replies.avg_reply_hours}h`}
+                                        </span>
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Resolution */}
+                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                            <div className="flex items-center gap-2 mb-3">
+                                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                                <h3 className="text-sm font-semibold text-gray-900">Résolution</h3>
+                            </div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="relative w-14 h-14">
+                                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                                        <circle cx="18" cy="18" r="16" fill="none" stroke="#E5E7EB" strokeWidth="3" />
+                                        <circle cx="18" cy="18" r="16" fill="none" stroke="#10B981" strokeWidth="3"
+                                            strokeDasharray={`${(resolution.rate / 100) * 100.5} 100.5`}
+                                            strokeLinecap="round"
+                                        />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <span className="text-xs font-bold text-gray-900">{resolution.rate}%</span>
+                                    </div>
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-gray-500">Résolus</span>
+                                        <span className="font-semibold text-emerald-600">{resolution.resolved}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-gray-500">En attente</span>
+                                        <span className="font-semibold text-amber-600">{resolution.unresolved}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-gray-500">Épinglés</span>
+                                        <span className="font-semibold text-indigo-600">{resolution.pinned}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Tasks */}
+                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                    <ListTodo className="w-4 h-4 text-orange-500" />
+                                    <h3 className="text-sm font-semibold text-gray-900">Tâches</h3>
+                                </div>
+                                <Link href={route('tasks.index')} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                                    Voir
+                                </Link>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mb-3">
+                                <MiniStat label="Ouvertes" value={tasks.open} icon={<CircleDot className="w-3.5 h-3.5 text-amber-500" />} />
+                                <MiniStat label="Terminées" value={tasks.completed} icon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />} />
+                            </div>
+                            {tasks.overdue > 0 && (
+                                <div className="flex items-center gap-2 p-2.5 bg-rose-50 rounded-lg">
+                                    <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                                    <span className="text-xs text-rose-700 font-medium">{tasks.overdue} en retard</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Platforms */}
+                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Globe2 className="w-4 h-4 text-blue-600" />
+                                <h3 className="text-sm font-semibold text-gray-900">Plateformes</h3>
+                            </div>
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs text-gray-500">{platforms.active} active{platforms.active > 1 ? 's' : ''} / {platforms.total} configurée{platforms.total > 1 ? 's' : ''}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {google.connected && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold">
+                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                                        Google
+                                    </span>
+                                )}
+                                {platforms.active === 0 && !google.connected && (
+                                    <span className="text-xs text-gray-400">Aucune plateforme connectée</span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Objectifs */}
+                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Target className="w-4 h-4 text-violet-600" />
+                                <h3 className="text-sm font-semibold text-gray-900">Objectifs</h3>
+                            </div>
+                            <div className="space-y-3">
+                                <GoalRow label="Taux de réponse" current={responseRate} target={70} unit="%" />
+                                <GoalRow label="Satisfaction" current={avgRating || 0} target={4.5} unit="/5" />
+                                <GoalRow label="Résolution" current={resolution.rate} target={80} unit="%" />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
             {qrModalOpen && globalQRCode && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setQrModalOpen(false)}>
-                    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl border-2 border-gray-200" onClick={(e) => e.stopPropagation()}>
-                        <h3 className="text-2xl font-black text-gray-900 mb-6">QR Code Global</h3>
-                        <div className="flex justify-center mb-6 bg-gray-50 p-6 rounded-xl">
-                            <img src={globalQRCode} alt="QR Code Global" className="w-64 h-64" />
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setQrModalOpen(false)}>
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-gray-900">QR Code Global</h3>
+                            <button onClick={() => setQrModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
+                                <X className="w-5 h-5" />
+                            </button>
                         </div>
-                        <div className="flex gap-3">
-                            <button onClick={downloadGlobalQR} className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all">Télécharger</button>
-                            <button onClick={() => setQrModalOpen(false)} className="flex-1 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 transition-all">Fermer</button>
+                        <div className="flex justify-center mb-5 bg-gray-50 p-5 rounded-xl">
+                            <img src={globalQRCode} alt="QR Code Global" className="w-52 h-52" />
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={downloadGlobalQR} className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2">
+                                <Download className="w-4 h-4" /> Télécharger
+                            </button>
+                            <button onClick={() => setQrModalOpen(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-all">
+                                Fermer
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -228,258 +442,124 @@ export default function Index({ auth, stats, recentFeedbacks, globalQRCode }) {
     );
 }
 
-function KPICard({ title, value, subtext, icon, tone, target, trend }) {
-    const toneClasses = {
-        blue: 'from-blue-500 to-cyan-600',
-        purple: 'from-purple-500 to-fuchsia-600',
-        emerald: 'from-emerald-500 to-teal-600',
-        indigo: 'from-indigo-500 to-violet-600',
-    };
-
-    const trendColor = trend === null ? 'text-gray-400' : trend >= 0 ? 'text-emerald-600' : 'text-rose-600';
-    const TrendIcon = trend === null ? null : trend >= 0 ? TrendingUp : TrendingDown;
-
+function KPICard({ title, value, sub, icon, color, trend }) {
     return (
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all">
-            <div className="flex items-start justify-between mb-4">
-                <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{title}</p>
-                    <p className="text-3xl font-black text-gray-900">{value}</p>
-                    <p className="text-xs text-gray-400 mt-1">{subtext}</p>
-                </div>
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${toneClasses[tone]} text-white flex items-center justify-center text-lg font-bold`}>
-                    {icon}
-                </div>
-            </div>
-            <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <span className="text-xs text-gray-600 font-medium">Cible: {target}</span>
-                {TrendIcon && trend !== null && (
-                    <div className={`flex items-center gap-1 ${trendColor}`}>
-                        <TrendIcon size={14} />
-                        <span className="text-xs font-semibold">{trend > 0 ? '+' : ''}{trend}%</span>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between mb-3">
+                <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center text-white`}>{icon}</div>
+                {trend !== null && trend !== undefined && (
+                    <div className={`flex items-center gap-0.5 text-xs font-semibold ${trend >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {trend >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                        {trend > 0 ? '+' : ''}{trend}%
                     </div>
                 )}
             </div>
+            <p className="text-2xl font-bold text-gray-900 tracking-tight">{value}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{sub}</p>
         </div>
     );
 }
 
-function QuickActionButton({ icon, label, href, badge, onClick }) {
-    if (onClick) {
-        return (
-            <button
-                type="button"
-                onClick={onClick}
-                className="relative inline-flex flex-col items-center gap-2 px-4 py-3 bg-white/15 backdrop-blur-sm border border-white/30 rounded-xl text-white text-xs font-semibold hover:bg-white/25 transition-all group"
-            >
-                <div className="text-lg group-hover:scale-110 transition-transform">{icon}</div>
-                <span className="text-center leading-tight">{label}</span>
-                {badge ? (
-                    <span className="absolute top-1 right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                        {badge}
-                    </span>
-                ) : null}
-            </button>
-        );
-    }
-
-    return (
-        <Link
-            href={href}
-            className="relative inline-flex flex-col items-center gap-2 px-4 py-3 bg-white/15 backdrop-blur-sm border border-white/30 rounded-xl text-white text-xs font-semibold hover:bg-white/25 transition-all group"
-        >
-            <div className="text-lg group-hover:scale-110 transition-transform">{icon}</div>
-            <span className="text-center leading-tight">{label}</span>
-            {badge ? (
-                <span className="absolute top-1 right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {badge}
-                </span>
-            ) : null}
-        </Link>
-    );
+function QuickAction({ icon, label, href, badge, onClick }) {
+    const cls = "relative inline-flex items-center gap-2 px-3.5 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white text-xs font-medium hover:bg-white/20 transition-all";
+    const content = (<>{icon}{label}{badge > 0 && (<span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{badge}</span>)}</>);
+    if (onClick) return <button type="button" onClick={onClick} className={cls}>{content}</button>;
+    return <Link href={href} className={cls}>{content}</Link>;
 }
 
-function AlertsSection({ alerts }) {
-    const criticalCount = alerts.critical_feedbacks?.length || 0;
-    const overdueCount = alerts.overdue_feedbacks?.length || 0;
-    const totalAlerts = criticalCount + overdueCount;
-
-    if (totalAlerts === 0 && !alerts.sms_credits) {
-        return null;
-    }
-
+function SentimentRow({ label, count, total, color, emoji }) {
+    const percent = total > 0 ? Math.round((count / total) * 100) : 0;
+    const colors = { emerald: 'bg-emerald-500', amber: 'bg-amber-400', rose: 'bg-rose-500' };
     return (
-        <div className="bg-gradient-to-br from-rose-50 to-orange-50 rounded-2xl border-2 border-rose-200 p-6">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-rose-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                    <AlertTriangle size={18} />
+        <div className="flex items-center gap-3">
+            <span className="text-base">{emoji}</span>
+            <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-gray-700">{label}</span>
+                    <span className="text-xs text-gray-500">{count} ({percent}%)</span>
                 </div>
-                <div>
-                    <h3 className="text-lg font-bold text-gray-900">Alertes urgentes</h3>
-                    <p className="text-sm text-gray-600">{totalAlerts} action{totalAlerts > 1 ? 's' : ''} recommandée{totalAlerts > 1 ? 's' : ''}</p>
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${colors[color]}`} style={{ width: `${percent}%` }} />
                 </div>
-            </div>
-
-            <div className="space-y-3">
-                {criticalCount > 0 && (
-                    <AlertCard
-                        icon="🔴"
-                        title={`${criticalCount} feedback${criticalCount > 1 ? 's' : ''} critique${criticalCount > 1 ? 's' : ''} en attente`}
-                        description="Taux de réponse faible, risque de churn"
-                        action={{ label: 'Relancer maintenant', href: route('feedbacks.index') }}
-                    />
-                )}
-
-                {overdueCount > 0 && (
-                    <AlertCard
-                        icon="⏰"
-                        title={`${overdueCount} client${overdueCount > 1 ? 's' : ''} en attente`}
-                        description="Feedbacks non finalisés"
-                        action={{ label: 'Vérifier', href: route('feedbacks.index') }}
-                    />
-                )}
             </div>
         </div>
     );
 }
 
-function AlertCard({ icon, title, description, action, variant = 'default' }) {
-    const variantStyles = {
-        default: 'bg-white border-gray-200',
-        warning: 'bg-amber-50 border-amber-300',
-        critical: 'bg-red-50 border-red-300',
+function ChannelBar({ label, value, total, icon, color }) {
+    const percent = total > 0 ? Math.round((value / total) * 100) : 0;
+    return (
+        <div className="flex items-center gap-3">
+            <span className="text-sm">{icon}</span>
+            <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-gray-700">{label}</span>
+                    <span className="text-xs text-gray-500">{value}</span>
+                </div>
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${color}`} style={{ width: `${percent}%` }} />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SourceCard({ label, count, icon, desc }) {
+    return (
+        <div className="bg-gray-50 rounded-lg p-3 text-center">
+            <span className="text-xl block mb-1">{icon}</span>
+            <p className="text-lg font-bold text-gray-900">{count}</p>
+            <p className="text-xs font-medium text-gray-700">{label}</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">{desc}</p>
+        </div>
+    );
+}
+
+function MiniStat({ label, value, icon }) {
+    return (
+        <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg">
+            {icon}
+            <div>
+                <p className="text-sm font-bold text-gray-900 leading-none">{value}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{label}</p>
+            </div>
+        </div>
+    );
+}
+
+function AlertRow({ icon, text }) {
+    return (
+        <div className="flex items-center gap-2 px-3 py-2 bg-white/80 rounded-lg">
+            <span className="text-sm">{icon}</span>
+            <span className="text-xs font-medium text-rose-800">{text}</span>
+        </div>
+    );
+}
+
+function StatusPill({ status }) {
+    const config = {
+        completed: { label: 'Complété', cls: 'bg-emerald-50 text-emerald-700' },
+        sent: { label: 'Envoyé', cls: 'bg-sky-50 text-sky-700' },
+        pending: { label: 'En attente', cls: 'bg-amber-50 text-amber-700' },
+        failed: { label: 'Échoué', cls: 'bg-rose-50 text-rose-700' },
+        responded: { label: 'Répondu', cls: 'bg-indigo-50 text-indigo-700' },
     };
-
-    const buttonStyles = {
-        default: 'bg-gradient-to-r from-rose-500 to-orange-600',
-        warning: 'bg-gradient-to-r from-amber-500 to-orange-600',
-        critical: 'bg-gradient-to-r from-red-600 to-rose-600',
-    };
-
-    return (
-        <div className={`flex items-start justify-between gap-4 p-4 rounded-xl border ${variantStyles[variant]}`}>
-            <div className="flex items-start gap-3 flex-1">
-                <span className="text-xl mt-0.5">{icon}</span>
-                <div>
-                    <p className={`font-semibold ${variant === 'default' ? 'text-gray-900' : variant === 'warning' ? 'text-amber-900' : 'text-red-900'}`}>
-                        {title}
-                    </p>
-                    <div className={`text-xs mt-1 ${variant === 'default' ? 'text-gray-600' : variant === 'warning' ? 'text-amber-700' : 'text-red-700'}`}>
-                        {description}
-                    </div>
-                </div>
-            </div>
-            <Link
-                href={action.href}
-                className={`inline-flex items-center gap-1 px-3 py-2 ${buttonStyles[variant]} text-white text-xs font-bold rounded-lg hover:shadow-lg transition-all whitespace-nowrap flex-shrink-0`}
-            >
-                {action.label}
-                <span>→</span>
-            </Link>
-        </div>
-    );
+    const c = config[status] || { label: status || '—', cls: 'bg-gray-50 text-gray-500' };
+    return <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${c.cls}`}>{c.label}</span>;
 }
 
-function TrendsSection({ trends, stats }) {
+function GoalRow({ label, current, target, unit }) {
+    const progress = Math.min(100, Math.round((current / target) * 100));
+    const isGood = progress >= 80;
     return (
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-            <div className="flex items-center gap-3 mb-6">
-                <TrendingUp className="w-6 h-6 text-indigo-600" />
-                <h3 className="text-lg font-bold text-gray-900">Tendances (cette semaine vs moyenne)</h3>
+        <div>
+            <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-600">{label}</span>
+                <span className="text-xs font-medium text-gray-900">{current}{unit} / {target}{unit}</span>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <TrendRow label="Demandes envoyées" delta={trends.requests} current={stats.requests_last_7d} />
-                <TrendRow label="Taux de réponse" delta={trends.response_rate} current={`${stats.response_rate_7d}%`} />
-                <TrendRow label="Satisfaction" delta={trends.satisfaction} current={stats.avg_rating ? `${stats.avg_rating}/5` : '—'} />
+            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${isGood ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${progress}%` }} />
             </div>
-        </div>
-    );
-}
-
-function TrendRow({ label, delta, current }) {
-    const isPositive = delta === null ? null : delta >= 0;
-    const Color = isPositive === null ? 'text-gray-400' : isPositive ? 'text-emerald-600' : 'text-rose-600';
-    const Icon = isPositive === null ? null : isPositive ? TrendingUp : TrendingDown;
-
-    return (
-        <div className="text-center p-4 bg-gray-50 rounded-xl">
-            <p className="text-sm text-gray-600 mb-2">{label}</p>
-            <p className="text-2xl font-black text-gray-900">{current}</p>
-            {Icon && delta !== null && (
-                <div className={`flex items-center justify-center gap-1 mt-2 ${Color}`}>
-                    <Icon size={16} />
-                    <span className="text-sm font-bold">{delta > 0 ? '+' : ''}{delta}%</span>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function GoalsSection({ goals }) {
-    return (
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-            <div className="flex items-center gap-3 mb-8">
-                <Target className="w-6 h-6 text-indigo-600" />
-                <h3 className="text-lg font-bold text-gray-900">Objectifs du mois</h3>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <GoalProgress label="Taux de réponse" current={goals.response_rate.current} target={goals.response_rate.target} unit="%" progress={goals.response_rate.progress} />
-                <GoalProgress label="Temps moyen de réponse" current={goals.avg_response_time.current} target={goals.avg_response_time.target} unit="jours" progress={goals.avg_response_time.progress} />
-                <GoalProgress label="Satisfaction client" current={goals.satisfaction.current} target={goals.satisfaction.target} unit="/5" progress={goals.satisfaction.progress} />
-            </div>
-        </div>
-    );
-}
-
-function GoalProgress({ label, current, target, unit, progress }) {
-    return (
-        <div className="text-center">
-            <p className="text-sm font-semibold text-gray-600 mb-4">{label}</p>
-            <div className="relative w-24 h-24 mx-auto mb-4">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="45" fill="none" stroke="#e5e7eb" strokeWidth="8" />
-                    <circle
-                        cx="50"
-                        cy="50"
-                        r="45"
-                        fill="none"
-                        stroke="#4f46e5"
-                        strokeWidth="8"
-                        strokeDasharray={`${2 * Math.PI * 45 * progress / 100} ${2 * Math.PI * 45}`}
-                    />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl font-black text-gray-900">{Math.round(progress)}%</span>
-                </div>
-            </div>
-            <p className="text-sm text-gray-600">{current} / {target} {unit}</p>
-        </div>
-    );
-}
-
-function SentimentBadge({ label, value, color, icon }) {
-    const colorClasses = {
-        emerald: 'bg-emerald-50 text-emerald-900 border-emerald-200',
-        slate: 'bg-slate-50 text-slate-900 border-slate-200',
-        rose: 'bg-rose-50 text-rose-900 border-rose-200',
-    };
-
-    return (
-        <div className={`p-4 rounded-xl border-2 text-center ${colorClasses[color]}`}>
-            <p className="text-2xl mb-2">{icon}</p>
-            <p className="text-xs font-semibold opacity-75">{label}</p>
-            <p className="text-2xl font-black">{value}</p>
-        </div>
-    );
-}
-
-function ChannelStat({ label, value }) {
-    return (
-        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <span className="font-medium text-gray-700">{label}</span>
-            <span className="text-lg font-black text-indigo-600">{value}</span>
         </div>
     );
 }

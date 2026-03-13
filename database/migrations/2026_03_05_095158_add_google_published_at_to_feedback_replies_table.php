@@ -11,7 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // This migration was deprecated — company ownership is handled via companies.user_id directly.
+        Schema::table('feedback_replies', function (Blueprint $table) {
+            $table->timestamp('google_published_at')->nullable()->after('provider_response');
+        });
     }
 
     /**
@@ -19,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        //
+        Schema::table('feedback_replies', function (Blueprint $table) {
+            $table->dropColumn('google_published_at');
+        });
     }
 };

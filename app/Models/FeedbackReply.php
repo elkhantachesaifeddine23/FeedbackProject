@@ -17,6 +17,11 @@ class FeedbackReply extends Model
         'status',
         'provider',
         'provider_response',
+        'google_published_at',
+    ];
+
+    protected $casts = [
+        'google_published_at' => 'datetime',
     ];
 
     public function feedback()

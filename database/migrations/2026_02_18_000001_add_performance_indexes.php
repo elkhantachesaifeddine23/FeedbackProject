@@ -59,7 +59,7 @@ return new class extends Migration
         }
 
         // Index sur users
-        if (Schema::hasTable('users')) {
+        if (Schema::hasTable('users') && Schema::hasColumn('users', 'company_id')) {
             Schema::table('users', function (Blueprint $table) {
                 try {
                     if (!Schema::hasIndex('users', 'users_company_id_idx')) {

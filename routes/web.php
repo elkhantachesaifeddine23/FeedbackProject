@@ -130,6 +130,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('radar');
     Route::get('/radar-ia/export', [DashboardController::class, 'exportRadar'])
         ->name('radar.export');
+    Route::post('/radar-ia/problems/{id}/create-task', [DashboardController::class, 'createTaskFromProblem'])
+        ->name('radar.problems.createTask');
+    Route::post('/radar-ia/problems/{id}/resolve', [DashboardController::class, 'resolveDetectedProblem'])
+        ->name('radar.problems.resolve');
+    Route::post('/radar-ia/problems/{id}/reopen', [DashboardController::class, 'reopenDetectedProblem'])
+        ->name('radar.problems.reopen');
 
     /*
     | Tasks (company)

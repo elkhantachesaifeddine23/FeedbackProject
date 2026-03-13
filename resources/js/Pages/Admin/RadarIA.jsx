@@ -516,26 +516,6 @@ export default function RadarIA({ auth, stats, analysis, lastUpdated, period, tr
                             </p>
                         </div>
                     </div>
-
-                    {/* ROI Pro */}
-                    <div className="mt-6 bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-6 text-white">
-                        <div className="flex items-center justify-between gap-4 flex-wrap">
-                            <div className="flex items-center gap-4">
-                                <BarChart3 className="w-8 h-8" />
-                                <div>
-                                    <h4 className="text-lg font-bold">Valeur du Radar IA Pro</h4>
-                                    <p className="text-sm text-white/90">ROI estimé basé sur vos données</p>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <div className="text-3xl font-black">{((stats?.negative || 0) * 45).toLocaleString()}€</div>
-                                <p className="text-sm text-white/80">Économie potentielle / mois</p>
-                                <p className="text-xs text-white/70 mt-1">
-                                    Basé sur {stats?.negative || 0} clients insatisfaits × 45€ de valeur client moyenne
-                                </p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 {/* KPI Cards */}

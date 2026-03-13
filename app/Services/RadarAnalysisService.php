@@ -66,14 +66,14 @@ class RadarAnalysisService
 	 * @param int $feedbacksWithComments - Nombre de feedbacks avec commentaires
 	 * @return array - Analyse (du cache ou nouvellement générée)
 	 */
-	public function analyzeWithCache(int $companyId, array $feedbacks, array $sentimentStats = [], int $feedbacksWithComments = 0): array
+	public function analyzeWithCache(int $companyId, array $feedbacks, array $sentimentStats = [], int $feedbacksWithComments = 0, array $resolutionContext = []): array
 	{
 		if (empty($feedbacks)) {
 			return $this->fallbackAnalysis($feedbacks, $sentimentStats, 'Aucun feedback à analyser pour le moment.');
 		}
 
-		// 1️⃣ Générer le hash des feedbacks actuels
-		$feedbackHash = $this->generateFeedbackHash($feedbacks);
+		// 1️⃣ Hash includes resolution state so resolving a feedback invalidates cache
+		$feedbackHash = $this->generateFeedbackHash($feedbacks, $resolutionContext);
 
 		// 2️⃣ Chercher une analyse existante avec le même hash
 		$cachedAnalysis = RadarAnalysis::where('company_id', $companyId)
@@ -110,17 +110,24 @@ class RadarAnalysisService
 	}
 
 	/**
-	 * Générer un hash SHA256 des feedback IDs
-	 * Ceci détecte si les feedbacks ont changé
+	 * Générer un hash SHA256 des feedback IDs + resolution state
+	 * When a feedback is resolved, the hash changes → cache invalidated
 	 */
-	private function generateFeedbackHash(array $feedbacks): string
+	private function generateFeedbackHash(array $feedbacks, array $resolutionContext = []): string
 	{
 		$ids = collect($feedbacks)
 			->pluck('id')
 			->sort()
 			->implode(',');
 
-		return hash('sha256', $ids);
+		$resolutionSuffix = '';
+		if (!empty($resolutionContext)) {
+			$resolutionSuffix = '|res:' . ($resolutionContext['resolved_in_period'] ?? 0)
+				. '|unres:' . ($resolutionContext['unresolved_in_period'] ?? 0)
+				. '|last:' . ($resolutionContext['last_resolved_at'] ?? '');
+		}
+
+		return hash('sha256', $ids . $resolutionSuffix);
 	}
 
 	/**

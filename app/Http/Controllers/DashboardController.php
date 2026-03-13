@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\Feedback;
 use App\Models\FeedbackRequest;
+use App\Models\FeedbackReply;
+use App\Models\Task;
+use App\Models\ReviewPlatform;
 use App\Services\RadarAnalysisService;
 use App\Services\ActionableInsightsService;
 use App\Services\CreditConsumptionService;
@@ -291,8 +294,147 @@ class DashboardController extends Controller
             }
         );
 
+        // ── Extended Pro Stats ─────────────────────────────────
+        $extendedStats = \Illuminate\Support\Facades\Cache::remember(
+            "dashboard-extended-{$company->id}",
+            3600,
+            function () use ($company) {
+                // Tasks stats
+                $tasks = Task::where('company_id', $company->id);
+                $tasksTotal = (clone $tasks)->count();
+                $tasksOpen = (clone $tasks)->whereIn('status', ['not_started', 'in_progress'])->count();
+                $tasksCompleted = (clone $tasks)->where('status', 'completed')->count();
+                $tasksOverdue = (clone $tasks)->whereNotNull('due_date')->where('due_date', '<', now())->whereIn('status', ['not_started', 'in_progress'])->count();
+                $tasksCritical = (clone $tasks)->where('severity', 'critical')->whereIn('status', ['not_started', 'in_progress'])->count();
+
+                // Feedback Replies stats
+                $repliesTotal = FeedbackReply::whereHas('feedback.feedbackRequest', function ($q) use ($company) {
+                    $q->where('company_id', $company->id);
+                })->count();
+                $repliesAI = FeedbackReply::whereHas('feedback.feedbackRequest', function ($q) use ($company) {
+                    $q->where('company_id', $company->id);
+                })->where('responder_type', 'ai')->count();
+                $repliesAdmin = FeedbackReply::whereHas('feedback.feedbackRequest', function ($q) use ($company) {
+                    $q->where('company_id', $company->id);
+                })->where('responder_type', 'admin')->count();
+
+                // Average time to first reply (in hours)
+                $avgReplyTime = FeedbackReply::whereHas('feedback.feedbackRequest', function ($q) use ($company) {
+                    $q->where('company_id', $company->id);
+                })
+                ->join('feedback', 'feedback_replies.feedback_id', '=', 'feedback.id')
+                ->selectRaw('AVG(EXTRACT(EPOCH FROM (feedback_replies.created_at - feedback.created_at)) / 3600) as avg_hours')
+                ->value('avg_hours');
+
+                // Resolution stats
+                $feedbacksResolved = Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+                    $q->where('company_id', $company->id);
+                })->whereNotNull('resolved_at')->count();
+                $feedbacksUnresolved = Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+                    $q->where('company_id', $company->id);
+                })->whereNull('resolved_at')->count();
+                $feedbacksPinned = Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+                    $q->where('company_id', $company->id);
+                })->where('is_pinned', true)->count();
+
+                // Feedback sources
+                $sourcesManual = Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+                    $q->where('company_id', $company->id);
+                })->where('source', 'manual')->count();
+                $sourcesGoogle = Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+                    $q->where('company_id', $company->id);
+                })->where('source', 'google')->count();
+
+                // Review platforms
+                $platformsActive = ReviewPlatform::where('company_id', $company->id)->where('is_active', true)->count();
+                $platformsTotal = ReviewPlatform::where('company_id', $company->id)->count();
+
+                // Subscription
+                $subscription = $company->subscription;
+
+                // Google sync
+                $googleConnected = $company->google_business_profile_connected ?? false;
+                $googleLastSync = $company->google_last_sync_at;
+
+                // Language distribution
+                $languages = FeedbackRequest::where('company_id', $company->id)
+                    ->whereNotNull('detected_language')
+                    ->select('detected_language', DB::raw('count(*) as count'))
+                    ->groupBy('detected_language')
+                    ->orderByDesc('count')
+                    ->limit(5)
+                    ->pluck('count', 'detected_language');
+
+                // Auto-reply enabled?
+                $policy = $company->responsePolicy;
+                $autoReplyEnabled = $policy ? $policy->auto_reply_enabled : false;
+
+                // Rating distribution with percentages
+                $totalWithRating = Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+                    $q->where('company_id', $company->id);
+                })->whereNotNull('rating')->count();
+
+                $ratingDistribution = collect([5, 4, 3, 2, 1])->map(function ($star) use ($company, $totalWithRating) {
+                    $count = Feedback::whereHas('feedbackRequest', function ($q) use ($company) {
+                        $q->where('company_id', $company->id);
+                    })->where('rating', $star)->count();
+                    return [
+                        'star' => $star,
+                        'count' => $count,
+                        'percent' => $totalWithRating > 0 ? round(($count / $totalWithRating) * 100, 1) : 0,
+                    ];
+                });
+
+                return [
+                    'tasks' => [
+                        'total' => $tasksTotal,
+                        'open' => $tasksOpen,
+                        'completed' => $tasksCompleted,
+                        'overdue' => $tasksOverdue,
+                        'critical' => $tasksCritical,
+                    ],
+                    'replies' => [
+                        'total' => $repliesTotal,
+                        'ai' => $repliesAI,
+                        'admin' => $repliesAdmin,
+                        'avg_reply_hours' => $avgReplyTime ? round((float) $avgReplyTime, 1) : null,
+                    ],
+                    'resolution' => [
+                        'resolved' => $feedbacksResolved,
+                        'unresolved' => $feedbacksUnresolved,
+                        'pinned' => $feedbacksPinned,
+                        'rate' => ($feedbacksResolved + $feedbacksUnresolved) > 0
+                            ? round(($feedbacksResolved / ($feedbacksResolved + $feedbacksUnresolved)) * 100, 1)
+                            : 0,
+                    ],
+                    'sources' => [
+                        'manual' => $sourcesManual,
+                        'google' => $sourcesGoogle,
+                    ],
+                    'platforms' => [
+                        'active' => $platformsActive,
+                        'total' => $platformsTotal,
+                    ],
+                    'subscription' => $subscription ? [
+                        'plan' => $subscription->plan,
+                        'status' => $subscription->status,
+                        'trial_ends_at' => $subscription->trial_ends_at?->toISOString(),
+                        'ends_at' => $subscription->ends_at?->toISOString(),
+                    ] : null,
+                    'google' => [
+                        'connected' => $googleConnected,
+                        'last_sync' => $googleLastSync?->toISOString(),
+                    ],
+                    'languages' => $languages,
+                    'auto_reply_enabled' => $autoReplyEnabled,
+                    'rating_distribution' => $ratingDistribution,
+                ];
+            }
+        );
+
         return Inertia::render('Dashboard/Index', [
             'stats' => $stats,
+            'extendedStats' => $extendedStats,
             'customers' => $customers,
             'recentFeedbacks' => $feedbacks,
             'feedbackTrend' => $feedbackTrend,
@@ -305,17 +447,121 @@ class DashboardController extends Controller
         $company = Auth::user()->company;
         $data = $this->buildRadarData($company, 30);
 
+        // ── Enrichir avec données opérationnelles (tasks, replies, resolution) ──
+        $periodStart = now()->subDays(30)->startOfDay();
+        $periodEnd = now();
+
+        $tasksQuery = Task::where('company_id', $company->id);
+        $operationalData = [
+            'tasks' => [
+                'total' => (clone $tasksQuery)->count(),
+                'open' => (clone $tasksQuery)->whereIn('status', ['not_started', 'in_progress'])->count(),
+                'completed' => (clone $tasksQuery)->where('status', 'completed')->count(),
+                'overdue' => (clone $tasksQuery)->whereNotNull('due_date')->where('due_date', '<', now())->whereIn('status', ['not_started', 'in_progress'])->count(),
+                'critical' => (clone $tasksQuery)->where('severity', 'critical')->whereIn('status', ['not_started', 'in_progress'])->count(),
+            ],
+            'replies' => [
+                'total' => FeedbackReply::whereHas('feedback.feedbackRequest', fn($q) => $q->where('company_id', $company->id))->count(),
+                'ai' => FeedbackReply::whereHas('feedback.feedbackRequest', fn($q) => $q->where('company_id', $company->id))->where('responder_type', 'ai')->count(),
+                'admin' => FeedbackReply::whereHas('feedback.feedbackRequest', fn($q) => $q->where('company_id', $company->id))->where('responder_type', 'admin')->count(),
+                'unanswered' => Feedback::whereHas('feedbackRequest', fn($q) => $q->where('company_id', $company->id))
+                    ->whereDoesntHave('replies')
+                    ->whereBetween('created_at', [$periodStart, $periodEnd])
+                    ->count(),
+            ],
+            'resolution' => [
+                'resolved' => Feedback::whereHas('feedbackRequest', fn($q) => $q->where('company_id', $company->id))->whereNotNull('resolved_at')->count(),
+                'unresolved' => Feedback::whereHas('feedbackRequest', fn($q) => $q->where('company_id', $company->id))->whereNull('resolved_at')->count(),
+                'pinned' => Feedback::whereHas('feedbackRequest', fn($q) => $q->where('company_id', $company->id))->where('is_pinned', true)->count(),
+            ],
+            'google' => [
+                'connected' => $company->google_business_profile_connected ?? false,
+                'reviews_count' => Feedback::whereHas('feedbackRequest', fn($q) => $q->where('company_id', $company->id))->where('source', 'google')->count(),
+            ],
+        ];
+
+        $resTotal = $operationalData['resolution']['resolved'] + $operationalData['resolution']['unresolved'];
+        $operationalData['resolution']['rate'] = $resTotal > 0
+            ? round(($operationalData['resolution']['resolved'] / $resTotal) * 100, 1) : 0;
+
+        // ── Récupérer les derniers feedbacks négatifs non résolus ──
+        $unresolvedNegative = Feedback::whereHas('feedbackRequest', fn($q) => $q->where('company_id', $company->id))
+            ->whereNotNull('comment')
+            ->where('rating', '<=', 2)
+            ->whereNull('resolved_at')
+            ->with('feedbackRequest.customer')
+            ->latest()
+            ->take(10)
+            ->get()
+            ->map(fn($f) => [
+                'id' => $f->id,
+                'rating' => $f->rating,
+                'comment' => mb_substr($f->comment, 0, 200),
+                'customer' => $f->feedbackRequest?->customer?->name ?? 'Anonyme',
+                'date' => $f->created_at?->format('d/m/Y'),
+                'resolved' => false,
+            ])->values()->all();
+
+        // ── IA Analysis: send only UNRESOLVED feedbacks + resolution context ──
         $analysis = $radarService->analyzeWithCache(
             companyId: $company->id,
             feedbacks: $data['analysisPayload'],
             sentimentStats: $data['sentiment'],
-            feedbacksWithComments: $data['feedbacksWithComments']
+            feedbacksWithComments: $data['feedbacksWithComments'],
+            resolutionContext: $data['resolutionContext'] ?? []
         );
 
-        // 🎯 EXPERT DATA ENGINEERING: Générer les actions à partir des problèmes détectés
+        // ── Générer le résumé IA avec persistance des problèmes détectés ──
+        $feedbackSummary = $this->generateFeedbackSummary($radarService, $company, $data, $operationalData);
+
+        // ── Persister les problèmes & décisions détectés par l'IA ──
+        $this->syncDetectedProblems($company, $feedbackSummary, $data['analysisPayload']);
+
+        // ── Charger les problèmes/décisions OUVERTS depuis la base ──
+        // Exclure ceux qui ont déjà une tâche associée
+        $detectedProblems = \App\Models\DetectedProblem::where('company_id', $company->id)
+            ->notResolved()
+            ->problems()
+            ->whereDoesntHave('tasks')
+            ->withCount('feedbacks')
+            ->orderByRaw("CASE WHEN urgency LIKE '%imm%' THEN 0 WHEN urgency LIKE '%court%' THEN 1 ELSE 2 END")
+            ->get()
+            ->map(fn($p) => [
+                'id' => $p->id,
+                'title' => $p->title,
+                'detail' => $p->detail,
+                'solution' => $p->solution,
+                'effort' => $p->effort,
+                'impact' => $p->impact,
+                'urgency' => $p->urgency,
+                'status' => $p->status,
+                'type' => $p->type,
+                'feedbacks_count' => $p->feedbacks_count,
+                'created_at' => $p->created_at?->format('d/m/Y'),
+            ])->values()->all();
+
+        $detectedDecisions = \App\Models\DetectedProblem::where('company_id', $company->id)
+            ->notResolved()
+            ->decisions()
+            ->whereDoesntHave('tasks')
+            ->withCount('feedbacks')
+            ->orderByRaw("CASE WHEN urgency LIKE '%imm%' THEN 0 WHEN urgency LIKE '%court%' THEN 1 ELSE 2 END")
+            ->get()
+            ->map(fn($d) => [
+                'id' => $d->id,
+                'title' => $d->title,
+                'detail' => $d->detail,
+                'impact' => $d->impact,
+                'urgency' => $d->urgency,
+                'status' => $d->status,
+                'type' => $d->type,
+                'feedbacks_count' => $d->feedbacks_count,
+                'created_at' => $d->created_at?->format('d/m/Y'),
+            ])->values()->all();
+
+        // 🎯 Générer les actions à partir des problèmes détectés
         $generatedActions = $insightsService->generateActionsFromProblems($analysis, $data);
         
-        // Fusionner avec les actions channel et sélectionner les top 5 par priorité
         $allActions = array_merge($data['recommendedActions'], $generatedActions);
         usort($allActions, function ($a, $b) {
             $prio = ['P0' => 0, 'P1' => 1, 'P2' => 2];
@@ -338,12 +584,96 @@ class DashboardController extends Controller
             'trends' => $data['trends'],
             'signals' => $data['signals'],
             'recommendedActions' => $topActions,
-            'allActions' => $allActions, // Pour l'export détaillé
+            'allActions' => $allActions,
             'benchmarks' => $data['benchmarks'],
             'healthScore' => $data['healthScore'],
             'analysis' => $analysis,
             'lastUpdated' => $lastUpdated,
+            'operationalData' => $operationalData,
+            'feedbackSummary' => $feedbackSummary,
+            'unresolvedNegative' => $unresolvedNegative,
+            'detectedProblems' => $detectedProblems,
+            'detectedDecisions' => $detectedDecisions,
         ]);
+    }
+
+    /**
+     * Créer une tâche à partir d'un problème/décision détecté par l'IA.
+     */
+    public function createTaskFromProblem(Request $request, int $id)
+    {
+        $company = Auth::user()->company;
+        if (!$company) abort(403);
+
+        $problem = \App\Models\DetectedProblem::where('company_id', $company->id)
+            ->where('id', $id)
+            ->notResolved()
+            ->firstOrFail();
+
+        // Vérifier si une tâche n'existe pas déjà pour ce problème
+        $existingTask = Task::where('detected_problem_id', $problem->id)->first();
+        if ($existingTask) {
+            return back()->with('info', 'Une tâche existe déjà pour ce problème.');
+        }
+
+        // Mapper l'urgence/impact vers la sévérité de la tâche
+        $severity = 'moderate';
+        if ($problem->urgency && str_contains(strtolower($problem->urgency), 'imm')) {
+            $severity = 'critical';
+        } elseif ($problem->impact && str_contains(strtolower($problem->impact), 'faible')) {
+            $severity = 'low';
+        }
+
+        // Créer la tâche
+        $task = Task::create([
+            'company_id' => $company->id,
+            'detected_problem_id' => $problem->id,
+            'title' => $problem->title,
+            'description' => $problem->solution ?? $problem->detail,
+            'status' => Task::STATUS_NOT_STARTED,
+            'severity' => $severity,
+            'priority' => $severity === 'critical' ? 100 : ($severity === 'moderate' ? 50 : 10),
+            'source' => 'radar_ia',
+        ]);
+
+        return back()->with('success', 'Tâche créée avec succès.');
+    }
+
+    /**
+     * Résoudre un problème/décision détecté par l'IA.
+     * Cascade: marque aussi les feedbacks liés comme résolus.
+     */
+    public function resolveDetectedProblem(Request $request, int $id)
+    {
+        $company = Auth::user()->company;
+        if (!$company) abort(403);
+
+        $problem = \App\Models\DetectedProblem::where('company_id', $company->id)
+            ->where('id', $id)
+            ->notResolved()
+            ->firstOrFail();
+
+        $problem->markResolved();
+
+        return back()->with('success', 'Problème résolu avec succès.');
+    }
+
+    /**
+     * Rouvrir un problème/décision précédemment résolu.
+     */
+    public function reopenDetectedProblem(Request $request, int $id)
+    {
+        $company = Auth::user()->company;
+        if (!$company) abort(403);
+
+        $problem = \App\Models\DetectedProblem::where('company_id', $company->id)
+            ->where('id', $id)
+            ->where('status', \App\Models\DetectedProblem::STATUS_RESOLVED)
+            ->firstOrFail();
+
+        $problem->reopen();
+
+        return back()->with('success', 'Problème rouvert.');
     }
 
     public function exportRadar(Request $request)
@@ -510,11 +840,11 @@ class DashboardController extends Controller
         $prevPeriodStart = now()->subDays($days * 2)->startOfDay();
         $prevPeriodEnd = now()->subDays($days)->endOfDay();
 
+        // ── LAYER 1: ALL feedbacks → Stats, Trends, Benchmarks, Health Score ──
         $allFeedbacks = Feedback::query()
             ->whereHas('feedbackRequest', function ($q) use ($company) {
                 $q->where('company_id', $company->id);
             })
-            ->notResolved()
             ->whereBetween('created_at', [$periodStart, $periodEnd])
             ->get();
 
@@ -522,21 +852,35 @@ class DashboardController extends Controller
             ->whereHas('feedbackRequest', function ($q) use ($company) {
                 $q->where('company_id', $company->id);
             })
-            ->notResolved()
             ->whereBetween('created_at', [$prevPeriodStart, $prevPeriodEnd])
             ->get();
 
+        // ── LAYER 2: UNRESOLVED feedbacks only → IA Analysis, Signals, Actions ──
+        // Exclure les feedbacks déjà liés à un problème ayant une tâche
         $analysisFeedbacks = Feedback::query()
             ->whereHas('feedbackRequest', function ($q) use ($company) {
                 $q->where('company_id', $company->id);
             })
             ->notResolved()
             ->whereNotNull('comment')
+            ->whereDoesntHave('detectedProblems.tasks')
             ->with(['feedbackRequest.customer'])
             ->whereBetween('created_at', [$periodStart, $periodEnd])
             ->latest()
             ->take(200)
             ->get();
+
+        // ── Resolution context for IA prompts ──
+        $resolvedInPeriod = Feedback::query()
+            ->whereHas('feedbackRequest', fn($q) => $q->where('company_id', $company->id))
+            ->whereNotNull('resolved_at')
+            ->whereBetween('created_at', [$periodStart, $periodEnd])
+            ->count();
+
+        $lastResolvedAt = Feedback::query()
+            ->whereHas('feedbackRequest', fn($q) => $q->where('company_id', $company->id))
+            ->whereNotNull('resolved_at')
+            ->max('resolved_at');
 
         $channelStats = FeedbackRequest::query()
             ->where('company_id', $company->id)
@@ -794,6 +1138,11 @@ class DashboardController extends Controller
             'analysisPayload' => $payload,
             'sentiment' => $sentiment,
             'feedbacksWithComments' => $analysisFeedbacks->count(),
+            'resolutionContext' => [
+                'resolved_in_period' => $resolvedInPeriod,
+                'unresolved_in_period' => $analysisFeedbacks->count(),
+                'last_resolved_at' => $lastResolvedAt,
+            ],
         ];
     }
 
@@ -1026,5 +1375,327 @@ class DashboardController extends Controller
         } catch (\Exception $e) {
             return null;
         }
+    }
+
+    /**
+     * Synchroniser les problèmes/décisions détectés par l'IA en base de données.
+     * 
+     * Logique :
+     * 1. Pour chaque problème/décision retourné par l'IA → upsert via ai_hash (dédupliquation)
+     * 2. Attacher les feedback_ids en pivot (sync sans détacher les anciens)
+     * 3. Auto-résoudre les problèmes OUVERTS qui ne sont plus détectés par l'IA
+     */
+    private function syncDetectedProblems($company, array $feedbackSummary, array $analysisPayload): void
+    {
+        if (($feedbackSummary['status'] ?? '') === 'empty') {
+            return;
+        }
+
+        $companyId = $company->id;
+        $now = now();
+        $currentHashes = [];
+
+        // Map analysis payload IDs for quick lookup
+        $validFeedbackIds = collect($analysisPayload)->pluck('id')->filter()->all();
+
+        // ── Process problems ──
+        $problems = $feedbackSummary['problems'] ?? [];
+        foreach ($problems as $problem) {
+            $title = trim($problem['title'] ?? '');
+            if (empty($title)) continue;
+
+            $hash = \App\Models\DetectedProblem::generateHash($title, $companyId);
+            $currentHashes[] = $hash;
+
+            // Check if exists first to avoid overwriting user-set status
+            $existing = \App\Models\DetectedProblem::where('ai_hash', $hash)
+                ->where('company_id', $companyId)
+                ->first();
+
+            if ($existing) {
+                // Update content but preserve status (user may have set it to in_progress)
+                $existing->update([
+                    'title' => $title,
+                    'detail' => $problem['detail'] ?? null,
+                    'solution' => $problem['solution'] ?? null,
+                    'effort' => $problem['effort'] ?? null,
+                    'impact' => $problem['impact'] ?? null,
+                    'urgency' => $problem['urgency'] ?? null,
+                ]);
+                // If it was resolved but IA re-detected it → reopen
+                if ($existing->status === \App\Models\DetectedProblem::STATUS_RESOLVED) {
+                    $existing->reopen();
+                }
+                $detected = $existing;
+            } else {
+                $detected = \App\Models\DetectedProblem::create([
+                    'ai_hash' => $hash,
+                    'company_id' => $companyId,
+                    'title' => $title,
+                    'detail' => $problem['detail'] ?? null,
+                    'solution' => $problem['solution'] ?? null,
+                    'effort' => $problem['effort'] ?? null,
+                    'impact' => $problem['impact'] ?? null,
+                    'urgency' => $problem['urgency'] ?? null,
+                    'type' => \App\Models\DetectedProblem::TYPE_PROBLEM,
+                    'status' => \App\Models\DetectedProblem::STATUS_OPEN,
+                ]);
+            }
+
+            // Attach feedback IDs (only valid ones, without detaching existing)
+            $feedbackIds = collect($problem['feedback_ids'] ?? [])
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => in_array($id, $validFeedbackIds))
+                ->unique()
+                ->values()
+                ->all();
+
+            if (!empty($feedbackIds)) {
+                $detected->feedbacks()->syncWithoutDetaching($feedbackIds);
+                // Update denormalized count
+                $detected->update(['feedbacks_count' => $detected->feedbacks()->count()]);
+            }
+        }
+
+        // ── Process decisions ──
+        $decisions = $feedbackSummary['decisions'] ?? [];
+        foreach ($decisions as $decision) {
+            $title = trim($decision['title'] ?? '');
+            if (empty($title)) continue;
+
+            $hash = \App\Models\DetectedProblem::generateHash($title, $companyId);
+            $currentHashes[] = $hash;
+
+            $existing = \App\Models\DetectedProblem::where('ai_hash', $hash)
+                ->where('company_id', $companyId)
+                ->first();
+
+            if ($existing) {
+                $existing->update([
+                    'title' => $title,
+                    'detail' => $decision['detail'] ?? null,
+                    'impact' => $decision['impact'] ?? null,
+                    'urgency' => $decision['urgency'] ?? null,
+                ]);
+                if ($existing->status === \App\Models\DetectedProblem::STATUS_RESOLVED) {
+                    $existing->reopen();
+                }
+                $detected = $existing;
+            } else {
+                $detected = \App\Models\DetectedProblem::create([
+                    'ai_hash' => $hash,
+                    'company_id' => $companyId,
+                    'title' => $title,
+                    'detail' => $decision['detail'] ?? null,
+                    'solution' => null,
+                    'effort' => null,
+                    'impact' => $decision['impact'] ?? null,
+                    'urgency' => $decision['urgency'] ?? null,
+                    'type' => \App\Models\DetectedProblem::TYPE_DECISION,
+                    'status' => \App\Models\DetectedProblem::STATUS_OPEN,
+                ]);
+            }
+
+            $feedbackIds = collect($decision['feedback_ids'] ?? [])
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => in_array($id, $validFeedbackIds))
+                ->unique()
+                ->values()
+                ->all();
+
+            if (!empty($feedbackIds)) {
+                $detected->feedbacks()->syncWithoutDetaching($feedbackIds);
+                $detected->update(['feedbacks_count' => $detected->feedbacks()->count()]);
+            }
+        }
+
+        // ── Auto-resolve: problems/decisions no longer detected by IA ──
+        // Only auto-resolve items that were OPEN (not manually in_progress)
+        if (!empty($currentHashes)) {
+            \App\Models\DetectedProblem::where('company_id', $companyId)
+                ->where('status', \App\Models\DetectedProblem::STATUS_OPEN)
+                ->whereNotIn('ai_hash', $currentHashes)
+                ->each(function ($stale) {
+                    $stale->markResolved();
+                });
+        }
+    }
+
+    /**
+     * Générer un résumé IA structuré des feedbacks avec Gemini
+     * Inclut: résumé, décisions suggérées, problèmes à résoudre avec solutions
+     */
+    private function generateFeedbackSummary(RadarAnalysisService $radarService, $company, array $data, array $ops): array
+    {
+        $cacheKey = "radar-summary-{$company->id}-" . md5(json_encode($data['sentiment']) . json_encode($ops));
+
+        return \Illuminate\Support\Facades\Cache::remember($cacheKey, 3600, function () use ($data, $ops) {
+            $feedbacks = $data['analysisPayload'] ?? [];
+            $stats = $data['stats'] ?? [];
+            $sentiment = $data['sentiment'] ?? [];
+
+            if (empty($feedbacks)) {
+                return [
+                    'status' => 'empty',
+                    'summary' => 'Aucun feedback disponible pour générer un résumé.',
+                    'decisions' => [],
+                    'problems' => [],
+                ];
+            }
+
+            // Include feedback IDs so IA can reference which feedbacks justify each problem/decision
+            $entries = collect($feedbacks)
+                ->take(50)
+                ->map(fn($f, $i) => "[ID:{$f['id']}] ★{$f['rating']}/5 — " . mb_substr($f['comment'] ?? '', 0, 200))
+                ->implode("\n");
+
+            $feedbackIds = collect($feedbacks)->take(50)->pluck('id')->values()->all();
+
+            $opsContext = json_encode([
+                'tasks_open' => $ops['tasks']['open'] ?? 0,
+                'tasks_overdue' => $ops['tasks']['overdue'] ?? 0,
+                'tasks_critical' => $ops['tasks']['critical'] ?? 0,
+                'replies_ai' => $ops['replies']['ai'] ?? 0,
+                'replies_admin' => $ops['replies']['admin'] ?? 0,
+                'unanswered' => $ops['replies']['unanswered'] ?? 0,
+                'resolution_rate' => $ops['resolution']['rate'] ?? 0,
+                'pinned' => $ops['resolution']['pinned'] ?? 0,
+                'avg_rating' => $stats['avgRating'] ?? null,
+                'response_rate' => $stats['responseRate'] ?? 0,
+                'positive_rate' => $stats['positiveRate'] ?? 0,
+                'negative_rate' => $stats['negativeRate'] ?? 0,
+            ], JSON_UNESCAPED_UNICODE);
+
+            $feedbackIdsJson = json_encode($feedbackIds);
+
+            $prompt = <<<PROMPT
+Tu es un consultant IA expert en expérience client (CX) et gestion d'entreprise. Analyse les feedbacks clients suivants et les données opérationnelles pour produire:
+
+1. Un RÉSUMÉ court (3-4 phrases max) qui capture l'essentiel de ce que disent les clients
+2. Des DÉCISIONS concrètes que le dirigeant devrait prendre (max 4)
+3. Des PROBLÈMES identifiés avec des SOLUTIONS précises (max 4)
+
+Données opérationnelles: {$opsContext}
+Sentiment: positif={$sentiment['positive']}, neutre={$sentiment['neutral']}, négatif={$sentiment['negative']}
+
+IMPORTANT: Chaque feedback a un identifiant [ID:xxx]. Pour chaque problème et décision, tu DOIS indiquer les IDs des feedbacks qui justifient cette observation dans le champ "feedback_ids".
+IDs disponibles: {$feedbackIdsJson}
+
+Contraintes:
+- JSON valide uniquement
+- Pas d'invention — uniquement basé sur les feedbacks fournis
+- Ton professionnel, concis, actionnable
+- Chaque décision et problème doit avoir un impact mesurable
+- feedback_ids doit contenir UNIQUEMENT des IDs présents dans la liste ci-dessus
+
+Format JSON:
+{
+  "summary": "Résumé en 3-4 phrases...",
+  "decisions": [
+    {"title": "...", "detail": "...", "impact": "faible|moyen|fort", "urgency": "immédiat|court_terme|moyen_terme", "feedback_ids": [12, 45]}
+  ],
+  "problems": [
+    {"title": "...", "detail": "...", "solution": "...", "effort": "faible|moyen|élevé", "impact": "faible|moyen|fort", "feedback_ids": [12, 78, 90]}
+  ]
+}
+
+Feedbacks:
+{$entries}
+PROMPT;
+
+            try {
+                $apiKey = config('services.gemini.api_key');
+                $model = config('services.gemini.model') ?? 'models/gemini-2.5-flash:generateContent';
+
+                if (!$apiKey) {
+                    return $this->fallbackFeedbackSummary($data, $ops);
+                }
+
+                $url = 'https://generativelanguage.googleapis.com/v1beta/' . $model . '?key=' . urlencode($apiKey);
+
+                $response = \Illuminate\Support\Facades\Http::timeout(30)->post($url, [
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                ]);
+
+                if (!$response->successful()) {
+                    return $this->fallbackFeedbackSummary($data, $ops);
+                }
+
+                $text = $response->json('candidates.0.content.parts.0.text');
+                $start = strpos($text, '{');
+                $end = strrpos($text, '}');
+
+                if ($start === false || $end === false) {
+                    return $this->fallbackFeedbackSummary($data, $ops);
+                }
+
+                $parsed = json_decode(substr($text, $start, $end - $start + 1), true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    return $this->fallbackFeedbackSummary($data, $ops);
+                }
+
+                // Sanitize feedback_ids: keep only valid IDs from the available set
+                $validIds = array_flip($feedbackIds);
+                $sanitizeIds = function (array $items) use ($validIds) {
+                    return array_map(function ($item) use ($validIds) {
+                        $ids = is_array($item['feedback_ids'] ?? null) ? $item['feedback_ids'] : [];
+                        $item['feedback_ids'] = array_values(array_filter($ids, fn($id) => isset($validIds[(int) $id])));
+                        return $item;
+                    }, $items);
+                };
+
+                return [
+                    'status' => 'ok',
+                    'summary' => $parsed['summary'] ?? 'Résumé indisponible.',
+                    'decisions' => $sanitizeIds(is_array($parsed['decisions'] ?? null) ? array_slice($parsed['decisions'], 0, 4) : []),
+                    'problems' => $sanitizeIds(is_array($parsed['problems'] ?? null) ? array_slice($parsed['problems'], 0, 4) : []),
+                ];
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Feedback summary generation failed', ['error' => $e->getMessage()]);
+                return $this->fallbackFeedbackSummary($data, $ops);
+            }
+        });
+    }
+
+    private function fallbackFeedbackSummary(array $data, array $ops): array
+    {
+        $stats = $data['stats'] ?? [];
+        $total = $stats['total'] ?? 0;
+        $negRate = $stats['negativeRate'] ?? 0;
+        $avgRating = $stats['avgRating'] ?? null;
+        $resRate = $ops['resolution']['rate'] ?? 0;
+
+        $summaryParts = [];
+        if ($total > 0) {
+            $summaryParts[] = "Sur les {$total} feedbacks analysés, le taux de satisfaction est de {$stats['positiveRate']}%.";
+        }
+        if ($avgRating) {
+            $summaryParts[] = "La note moyenne est de {$avgRating}/5.";
+        }
+        if ($negRate > 20) {
+            $summaryParts[] = "Le taux d'avis négatifs ({$negRate}%) nécessite une attention particulière.";
+        }
+        if (($ops['replies']['unanswered'] ?? 0) > 0) {
+            $summaryParts[] = "{$ops['replies']['unanswered']} feedback(s) restent sans réponse.";
+        }
+
+        $decisions = [];
+        if ($negRate > 25) {
+            $decisions[] = ['title' => 'Plan de redressement CX', 'detail' => 'Lancer un audit des retours négatifs pour identifier les causes racines.', 'impact' => 'fort', 'urgency' => 'immédiat'];
+        }
+        if (($ops['replies']['unanswered'] ?? 0) > 3) {
+            $decisions[] = ['title' => 'Répondre aux feedbacks en attente', 'detail' => "Il y a {$ops['replies']['unanswered']} feedbacks sans réponse.", 'impact' => 'moyen', 'urgency' => 'court_terme'];
+        }
+        if (($ops['tasks']['overdue'] ?? 0) > 0) {
+            $decisions[] = ['title' => 'Traiter les tâches en retard', 'detail' => "{$ops['tasks']['overdue']} tâche(s) dépassent leur date d'échéance.", 'impact' => 'moyen', 'urgency' => 'immédiat'];
+        }
+
+        return [
+            'status' => 'fallback',
+            'summary' => implode(' ', $summaryParts) ?: 'Résumé local: données insuffisantes pour une analyse approfondie.',
+            'decisions' => $decisions,
+            'problems' => [],
+        ];
     }
 }

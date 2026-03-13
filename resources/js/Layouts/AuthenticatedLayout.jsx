@@ -178,9 +178,9 @@ export default function AuthenticatedLayout({ user, header, children }) {
             `}>
                 <div className="flex flex-col h-full">
                     {/* Logo */}
-                    <div className="relative overflow-hidden border-b border-gray-200">
-                        <Link href={route('dashboard')} className="relative flex items-center justify-center px-6 py-8 bg-white">
-                            <img src="/images/logo_Luminea2.png" alt="Luminea" className="h-32 w-auto drop-shadow-xl transition-transform duration-300 hover:scale-105" style={{filter: 'brightness(1.1) contrast(1.2)'}} />
+                    <div className="border-b border-gray-200">
+                        <Link href={route('dashboard')} className="flex items-center justify-center px-5 py-5">
+                            <img src="/images/logo_Luminea2.png" alt="Luminea" className="h-20 w-auto object-contain transition-transform duration-200 hover:scale-105" />
                         </Link>
                     </div>
 

@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, Link } from '@inertiajs/react';
-import { Mail, MessageSquare, QrCode, Smartphone, Send, Trash2, Users, CheckSquare, Eye, Download, Edit } from 'lucide-react';
+import { Mail, MessageSquare, QrCode, Trash2, Users, Eye, Download, Edit, Search, Calendar, Phone, AtSign, UserPlus, X } from 'lucide-react';
 
 export default function Index({ auth, customers }) {
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedCustomer, setSelectedCustomer] = useState(null);
-    const [channelMenuVisible, setChannelMenuVisible] = useState(false);
     const [selectedCustomers, setSelectedCustomers] = useState([]);
     const [bulkChannelMenuVisible, setBulkChannelMenuVisible] = useState(false);
     const [qrModalOpen, setQrModalOpen] = useState(false);
@@ -14,23 +12,6 @@ export default function Index({ auth, customers }) {
     const [qrImageData, setQrImageData] = useState(null);
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     const [selectedCustomerForDetails, setSelectedCustomerForDetails] = useState(null);
-
-    const openChannelMenu = (customer) => {
-        setSelectedCustomer(customer);
-        setChannelMenuVisible(true);
-    };
-
-    const sendFeedback = (channel) => {
-        router.post(route('feedback-requests.store'), {
-            customer_id: selectedCustomer.id,
-            channel,
-        }, {
-            preserveScroll: true,
-        });
-
-        setChannelMenuVisible(false);
-        setSelectedCustomer(null);
-    };
 
     const sendBulkFeedback = (channel) => {
         router.post(route('feedback-requests.bulk'), {
@@ -72,17 +53,6 @@ export default function Index({ auth, customers }) {
         setQrModalOpen(true);
     };
 
-    const generateQRCodeDataURL = (customer) => {
-        // Créer ou récupérer le dernier feedback request
-        const feedbackRequest = customer.feedback_requests?.[0];
-        if (!feedbackRequest || !feedbackRequest.token) {
-            return null;
-        }
-        
-        // Utiliser la route côté serveur pour générer le QR
-        return route('customers.qr', customer.id);
-    };
-
     const downloadQR = (customer) => {
         if (!customer.qr_code_data) return;
         
@@ -104,250 +74,296 @@ export default function Index({ auth, customers }) {
         c.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const statusBadge = (status) => {
-        const styles = {
-            sent: 'bg-gradient-to-r from-blue-500 to-cyan-600 text-white',
-            delivered: 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white',
-            failed: 'bg-gradient-to-r from-rose-500 to-red-600 text-white',
-        };
+    const statusConfig = {
+        sent: { label: 'Envoyé', bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-500' },
+        delivered: { label: 'Délivré', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+        failed: { label: 'Échoué', bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500' },
+    };
+
+    const getStatus = (status) => {
+        const config = statusConfig[status] || { label: 'Aucun', bg: 'bg-gray-50', text: 'text-gray-500', dot: 'bg-gray-400' };
         return (
-            <span className={`px-3 py-1.5 rounded-xl text-xs font-bold shadow-md ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
-                {status || 'Aucun'}
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${config.bg} ${config.text}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></span>
+                {config.label}
             </span>
         );
     };
+
+    const avatarColors = [
+        'from-violet-500 to-purple-600',
+        'from-sky-500 to-blue-600',
+        'from-emerald-500 to-teal-600',
+        'from-amber-500 to-orange-600',
+        'from-rose-500 to-pink-600',
+        'from-cyan-500 to-teal-600',
+        'from-fuchsia-500 to-purple-600',
+        'from-lime-500 to-green-600',
+    ];
+
+    const getAvatarColor = (id) => avatarColors[id % avatarColors.length];
 
     return (
         <AuthenticatedLayout user={auth.user} header="Clients">
             <Head title="Clients" />
 
             <div className="space-y-6">
-                {/* Header Premium */}
-                <div className="relative rounded-3xl overflow-hidden shadow-xl">
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700"></div>
-                    <div className="absolute inset-0 opacity-10">
-                        <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
+                {/* Header */}
+                <div className="relative rounded-2xl overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"></div>
+                    <div className="absolute inset-0">
+                        <div className="absolute -top-24 -right-24 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl"></div>
+                        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl"></div>
                     </div>
-                    <div className="relative p-8">
+                    <div className="relative px-8 py-8">
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                                    <Users className="w-8 h-8 text-white" />
+                            <div className="flex items-center gap-5">
+                                <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center ring-1 ring-white/20">
+                                    <Users className="w-6 h-6 text-emerald-400" />
                                 </div>
                                 <div>
-                                    <h1 className="text-3xl font-black text-white mb-1">Clients</h1>
-                                    <p className="text-teal-100 text-lg">Gérez votre base de clients et envoyez des feedbacks</p>
+                                    <h1 className="text-2xl font-bold text-white tracking-tight">Clients</h1>
+                                    <p className="text-slate-400 text-sm mt-0.5">{customers.length} client{customers.length > 1 ? 's' : ''} au total</p>
                                 </div>
                             </div>
                             <Link
                                 href={route('customers.create')}
-                                className="inline-flex items-center gap-2 px-6 py-3 bg-white text-emerald-700 text-sm font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-emerald-500/25"
                             >
-                                <span className="text-xl">＋</span>
-                                Ajouter un client
+                                <UserPlus className="w-4 h-4" />
+                                Ajouter
                             </Link>
                         </div>
                     </div>
                 </div>
 
-                {/* Search & Bulk Actions */}
-                <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-6">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div className="flex-1">
-                            <div className="relative group">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <svg className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                </div>
-                                <input
-                                    type="text"
-                                    placeholder="Rechercher un client..."
-                                    value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium"
-                                />
-                            </div>
+                {/* Search & Filters Bar */}
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div className="flex-1 relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Rechercher par nom ou email..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-gray-400"
+                            />
+                            {searchTerm && (
+                                <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
                         </div>
-                        
-                        {selectedCustomers.length > 0 && (
-                            <div className="flex items-center gap-3 bg-gradient-to-r from-emerald-50 to-teal-50 px-6 py-3 rounded-xl border-2 border-emerald-200">
-                                <span className="text-sm font-black text-emerald-700">
-                                    {selectedCustomers.length} client{selectedCustomers.length > 1 ? 's' : ''} sélectionné{selectedCustomers.length > 1 ? 's' : ''}
-                                </span>
+
+                        <div className="flex items-center gap-2">
+                            {filteredCustomers.length > 0 && (
                                 <button
-                                    onClick={() => setBulkChannelMenuVisible(true)}
-                                    className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:shadow-lg transition-all font-bold text-sm hover:scale-105"
+                                    onClick={toggleSelectAll}
+                                    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                                        selectedCustomers.length === filteredCustomers.length
+                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                    }`}
                                 >
-                                    <Send className="w-4 h-4" />
-                                    Envoyer feedbacks
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedCustomers.length === filteredCustomers.length && filteredCustomers.length > 0}
+                                        onChange={toggleSelectAll}
+                                        className="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500"
+                                    />
+                                    Tout sélectionner
                                 </button>
-                                <button
-                                    onClick={() => setSelectedCustomers([])}
-                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-all font-bold text-sm"
-                                >
-                                    Annuler
-                                </button>
-                            </div>
-                        )}
+                            )}
+
+                            {selectedCustomers.length > 0 && (
+                                <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
+                                    <span className="text-sm font-medium text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full">
+                                        {selectedCustomers.length} sélectionné{selectedCustomers.length > 1 ? 's' : ''}
+                                    </span>
+                                    <button
+                                        onClick={() => setBulkChannelMenuVisible(true)}
+                                        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition-all shadow-sm"
+                                    >
+                                        <Mail className="w-3.5 h-3.5" />
+                                        Envoyer feedbacks
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedCustomers([])}
+                                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+                                        title="Désélectionner tout"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Table Premium */}
-                <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
-                                <tr>
-                                    <th className="px-6 py-4 text-left">
+                {/* Cards Grid */}
+                {filteredCustomers.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {filteredCustomers.map(customer => {
+                            const last = customer.feedback_requests?.[0];
+                            const isSelected = selectedCustomers.includes(customer.id);
+
+                            return (
+                                <div
+                                    key={customer.id}
+                                    className={`group relative bg-white rounded-xl border transition-all duration-200 hover:shadow-md ${
+                                        isSelected 
+                                            ? 'border-emerald-300 ring-2 ring-emerald-100 shadow-sm' 
+                                            : 'border-gray-200 hover:border-gray-300'
+                                    }`}
+                                >
+                                    {/* Selection checkbox */}
+                                    <div className="absolute top-4 right-4 z-10">
                                         <input
                                             type="checkbox"
-                                            checked={selectedCustomers.length === filteredCustomers.length && filteredCustomers.length > 0}
-                                            onChange={toggleSelectAll}
-                                            className="w-5 h-5 text-emerald-600 rounded-lg focus:ring-emerald-500 border-2 border-gray-300"
+                                            checked={isSelected}
+                                            onChange={() => toggleCustomerSelection(customer.id)}
+                                            className="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500 cursor-pointer"
                                         />
-                                    </th>
-                                    <th className="px-6 py-4 text-left text-xs font-black text-gray-700 uppercase tracking-wider">Client</th>
-                                    <th className="px-6 py-4 text-left text-xs font-black text-gray-700 uppercase tracking-wider">Contact</th>
-                                    <th className="px-6 py-4 text-left text-xs font-black text-gray-700 uppercase tracking-wider">Dernier envoi</th>
-                                    <th className="px-6 py-4 text-left text-xs font-black text-gray-700 uppercase tracking-wider">Statut</th>
-                                    <th className="px-6 py-4 text-right text-xs font-black text-gray-700 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                                {filteredCustomers.map(customer => {
-                                    const last = customer.feedback_requests?.[0];
-                                    return (
-                                        <tr key={customer.id} className="hover:bg-gradient-to-r hover:from-emerald-50/50 hover:to-transparent transition-all group">
-                                            <td className="px-6 py-5">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedCustomers.includes(customer.id)}
-                                                    onChange={() => toggleCustomerSelection(customer.id)}
-                                                    className="w-5 h-5 text-emerald-600 rounded-lg focus:ring-emerald-500 border-2 border-gray-300"
-                                                />
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center">
-                                                    <div className="relative">
-                                                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-full blur opacity-40 group-hover:opacity-70 transition-opacity"></div>
-                                                        <div className="relative w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
-                                                            {customer.name?.charAt(0).toUpperCase() || customer.email?.charAt(0).toUpperCase() || '?'}
-                                                        </div>
-                                                    </div>
-                                                    <div className="ml-4">
-                                                        <div className="text-sm font-bold text-gray-900">
-                                                            {customer.name || 'Sans nom'}
-                                                        </div>
-                                                    </div>
+                                    </div>
+
+                                    {/* Card Content */}
+                                    <div className="p-5">
+                                        {/* Avatar + Name */}
+                                        <div className="flex items-center gap-3.5 mb-4">
+                                            <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarColor(customer.id)} rounded-xl flex items-center justify-center text-white font-semibold text-sm shadow-sm flex-shrink-0`}>
+                                                {customer.name?.charAt(0).toUpperCase() || customer.email?.charAt(0).toUpperCase() || '?'}
+                                            </div>
+                                            <div className="min-w-0 flex-1 pr-6">
+                                                <h3 className="text-sm font-semibold text-gray-900 truncate">
+                                                    {customer.name || 'Sans nom'}
+                                                </h3>
+                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                    {getStatus(last?.status)}
                                                 </div>
-                                            </td>
-                                            <td className="px-6 py-5 text-sm font-semibold text-gray-600">
-                                                {customer.email || customer.phone}
-                                            </td>
-                                            <td className="px-6 py-5 text-sm font-bold text-gray-700">
-                                                {last ? new Date(last.created_at).toLocaleDateString('fr-FR') : 'Jamais'}
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                {statusBadge(last?.status)}
-                                            </td>
-                                            <td className="px-6 py-5 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <button
-                                                        onClick={() => handleDetailsClick(customer)}
-                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-all font-bold text-sm hover:scale-105"
-                                                        title="Voir les détails"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                        Voir
-                                                    </button>
-                                                    <Link
-                                                        href={route('customers.edit', customer.id)}
-                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-xl hover:bg-gray-600 transition-all font-bold text-sm hover:scale-105"
-                                                        title="Modifier"
-                                                    >
-                                                        <Edit className="w-4 h-4" />
-                                                        Modifier
-                                                    </Link>
-                                                    <button
-                                                        onClick={() => handleQRClick(customer)}
-                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-500 transition-all font-bold text-sm hover:scale-105"
-                                                        title="QR Code"
-                                                    >
-                                                        <QrCode className="w-4 h-4" />
-                                                        QR
-                                                    </button>
-                                                    <button
-                                                        onClick={() => openChannelMenu(customer)}
-                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-bold text-sm hover:scale-105"
-                                                    >
-                                                        <Send className="w-4 h-4" />
-                                                        Envoyer
-                                                    </button>
-                                                    <button
-                                                        onClick={() => deleteCustomer(customer.id, customer.name || customer.email)}
-                                                        className="inline-flex items-center px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Contact Info */}
+                                        <div className="space-y-2 mb-4">
+                                            {customer.email && (
+                                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                    <AtSign className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                                    <span className="truncate">{customer.email}</span>
                                                 </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                            )}
+                                            {customer.phone && (
+                                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                    <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                                    <span>{customer.phone}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                                                <span>
+                                                    {last 
+                                                        ? `Dernier envoi: ${new Date(last.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                                                        : 'Aucun envoi'
+                                                    }
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Divider */}
+                                        <div className="border-t border-gray-100 -mx-5 mb-3"></div>
+
+                                        {/* Actions */}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    onClick={() => handleDetailsClick(customer)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition-all"
+                                                    title="Voir les détails"
+                                                >
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                    Détails
+                                                </button>
+                                                <Link
+                                                    href={route('customers.edit', customer.id)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-all"
+                                                    title="Modifier"
+                                                >
+                                                    <Edit className="w-3.5 h-3.5" />
+                                                    Modifier
+                                                </Link>
+                                                <button
+                                                    onClick={() => handleQRClick(customer)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-violet-700 hover:bg-violet-50 rounded-lg transition-all"
+                                                    title="QR Code"
+                                                >
+                                                    <QrCode className="w-3.5 h-3.5" />
+                                                    QR
+                                                </button>
+                                            </div>
+                                            <button
+                                                onClick={() => deleteCustomer(customer.id, customer.name || customer.email)}
+                                                className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                title="Supprimer"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
-                </div>
-            </div>
-
-            {/* Modal choix canal - envoi individuel */}
-            {channelMenuVisible && selectedCustomer && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl border-2 border-gray-200">
-                        <h3 className="text-2xl font-black text-gray-900 mb-2">
-                            Envoyer un feedback
-                        </h3>
-                        <p className="text-sm text-gray-600 mb-6 font-medium">
-                            Choisissez le canal pour <span className="font-black text-emerald-600">{selectedCustomer.name || selectedCustomer.email}</span>
-                        </p>
-
-                        <div className="grid grid-cols-2 gap-4 mb-6">
-                            <ChannelButton icon={<Mail />} label="Email" onClick={() => sendFeedback('email')} />
-                            <ChannelButton icon={<MessageSquare />} label="SMS" onClick={() => sendFeedback('sms')} />
-                            <ChannelButton icon={<QrCode />} label="QR Code" onClick={() => sendFeedback('qr')} />
-                            <ChannelButton icon={<Smartphone />} label="WhatsApp" onClick={() => sendFeedback('whatsapp')} />
+                ) : (
+                    <div className="bg-white rounded-xl border border-gray-200 p-16 text-center">
+                        <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <Users className="w-8 h-8 text-gray-400" />
                         </div>
-
-                        <button
-                            onClick={() => setChannelMenuVisible(false)}
-                            className="w-full py-3 rounded-xl bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 transition-all"
-                        >
-                            Annuler
-                        </button>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                            {searchTerm ? 'Aucun résultat' : 'Aucun client'}
+                        </h3>
+                        <p className="text-sm text-gray-500 mb-6">
+                            {searchTerm 
+                                ? `Aucun client ne correspond à "${searchTerm}"`
+                                : 'Commencez par ajouter votre premier client'
+                            }
+                        </p>
+                        {!searchTerm && (
+                            <Link
+                                href={route('customers.create')}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl transition-all"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                                Ajouter un client
+                            </Link>
+                        )}
                     </div>
-                </div>
-            )}
+                )}
+            </div>
 
             {/* Modal choix canal - envoi en masse */}
             {bulkChannelMenuVisible && selectedCustomers.length > 0 && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl border-2 border-gray-200">
-                        <h3 className="text-2xl font-black text-gray-900 mb-2">
-                            Envoyer des feedbacks en masse
-                        </h3>
-                        <p className="text-sm text-gray-600 mb-6 font-medium">
-                            Choisissez le canal pour envoyer à <span className="font-black text-emerald-600">{selectedCustomers.length} client{selectedCustomers.length > 1 ? 's' : ''}</span>
-                        </p>
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setBulkChannelMenuVisible(false)}>
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-5">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Envoi en masse</h3>
+                                <p className="text-sm text-gray-500 mt-0.5">
+                                    {selectedCustomers.length} client{selectedCustomers.length > 1 ? 's' : ''} sélectionné{selectedCustomers.length > 1 ? 's' : ''}
+                                </p>
+                            </div>
+                            <button onClick={() => setBulkChannelMenuVisible(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
 
-                        <div className="grid grid-cols-2 gap-4 mb-6">
-                            <ChannelButton icon={<Mail />} label="Email" onClick={() => sendBulkFeedback('email')} />
-                            <ChannelButton icon={<MessageSquare />} label="SMS" onClick={() => sendBulkFeedback('sms')} />
+                        <div className="space-y-2 mb-4">
+                            <ChannelButton icon={<Mail className="w-5 h-5" />} label="Par email" description="Envoyer par courrier électronique" onClick={() => sendBulkFeedback('email')} />
+                            <ChannelButton icon={<MessageSquare className="w-5 h-5" />} label="Par SMS" description="Envoyer par message texte" onClick={() => sendBulkFeedback('sms')} />
                         </div>
 
                         <button
                             onClick={() => setBulkChannelMenuVisible(false)}
-                            className="w-full py-3 rounded-xl bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 transition-all"
+                            className="w-full py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
                         >
                             Annuler
                         </button>
@@ -358,49 +374,52 @@ export default function Index({ auth, customers }) {
             {/* Modal QR Code */}
             {qrModalOpen && selectedCustomerForQR && (
                 <div 
-                    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
                     onClick={() => setQrModalOpen(false)}
                 >
                     <div 
-                        className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl border-2 border-gray-200"
+                        className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <h3 className="text-2xl font-black text-gray-900 mb-2">
-                            QR Code
-                        </h3>
-                        <p className="text-sm text-gray-600 mb-6 font-medium">
-                            QR Code pour <span className="font-black text-blue-900">{selectedCustomerForQR.name || selectedCustomerForQR.email}</span>
-                        </p>
+                        <div className="flex items-center justify-between mb-5">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">QR Code</h3>
+                                <p className="text-sm text-gray-500 mt-0.5">{selectedCustomerForQR.name || selectedCustomerForQR.email}</p>
+                            </div>
+                            <button onClick={() => setQrModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
 
-                        <div className="flex justify-center mb-6">
+                        <div className="flex justify-center mb-5">
                             {qrImageData ? (
                                 <img 
                                     src={qrImageData} 
                                     alt="QR Code"
-                                    className="w-64 h-64 border-2 border-gray-200 rounded-xl"
+                                    className="w-56 h-56 border border-gray-200 rounded-xl"
                                 />
                             ) : (
-                                <div className="w-64 h-64 border-2 border-gray-200 rounded-xl flex items-center justify-center bg-gray-50">
+                                <div className="w-56 h-56 border border-gray-200 rounded-xl flex items-center justify-center bg-gray-50">
                                     <div className="text-center">
-                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900 mx-auto mb-3"></div>
-                                        <p className="text-sm text-gray-600 font-medium">Génération du QR Code...</p>
+                                        <div className="animate-spin rounded-full h-10 w-10 border-2 border-emerald-500 border-t-transparent mx-auto mb-3"></div>
+                                        <p className="text-xs text-gray-500">Génération...</p>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        <div className="flex gap-3">
+                        <div className="flex gap-2">
                             <button
                                 onClick={() => downloadQR(selectedCustomerForQR)}
-                                className="flex-1 py-3 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold transition-all flex items-center justify-center gap-2"
+                                className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2"
                                 disabled={!qrImageData}
                             >
-                                <Download className="w-5 h-5" />
+                                <Download className="w-4 h-4" />
                                 Télécharger
                             </button>
                             <button
                                 onClick={() => setQrModalOpen(false)}
-                                className="flex-1 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 transition-all"
+                                className="flex-1 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-all"
                             >
                                 Fermer
                             </button>
@@ -412,113 +431,84 @@ export default function Index({ auth, customers }) {
             {/* Modal Détails Client */}
             {detailsModalOpen && selectedCustomerForDetails && (
                 <div 
-                    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
                     onClick={() => setDetailsModalOpen(false)}
                 >
                     <div 
-                        className="bg-white rounded-3xl p-8 w-full max-w-2xl shadow-2xl border-2 border-gray-200 max-h-[90vh] overflow-y-auto"
+                        className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[85vh] overflow-hidden flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <h3 className="text-2xl font-black text-gray-900 mb-6">
-                            Détails du client
-                        </h3>
-
-                        <div className="space-y-6">
-                            {/* Informations principales */}
-                            <div className="bg-gradient-to-br from-blue-50 to-gray-50 rounded-2xl p-6 border-2 border-blue-100">
-                                <div className="flex items-center gap-4 mb-4">
-                                    <div className="w-16 h-16 bg-gradient-to-br from-blue-900 to-blue-700 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg">
-                                        {selectedCustomerForDetails.name?.charAt(0).toUpperCase() || selectedCustomerForDetails.email?.charAt(0).toUpperCase() || '?'}
-                                    </div>
-                                    <div>
-                                        <h4 className="text-xl font-black text-gray-900">
-                                            {selectedCustomerForDetails.name || 'Sans nom'}
-                                        </h4>
-                                        <p className="text-sm text-gray-600 font-medium">
-                                            Client ID: #{selectedCustomerForDetails.id}
-                                        </p>
-                                    </div>
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 bg-gradient-to-br ${getAvatarColor(selectedCustomerForDetails.id)} rounded-xl flex items-center justify-center text-white font-semibold text-sm`}>
+                                    {selectedCustomerForDetails.name?.charAt(0).toUpperCase() || selectedCustomerForDetails.email?.charAt(0).toUpperCase() || '?'}
                                 </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Email</p>
-                                        <p className="text-sm font-bold text-gray-900">{selectedCustomerForDetails.email || 'Non renseigné'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Téléphone</p>
-                                        <p className="text-sm font-bold text-gray-900">{selectedCustomerForDetails.phone || 'Non renseigné'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Créé le</p>
-                                        <p className="text-sm font-bold text-gray-900">
-                                            {new Date(selectedCustomerForDetails.created_at).toLocaleDateString('fr-FR', {
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric'
-                                            })}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Mis à jour le</p>
-                                        <p className="text-sm font-bold text-gray-900">
-                                            {new Date(selectedCustomerForDetails.updated_at).toLocaleDateString('fr-FR', {
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric'
-                                            })}
-                                        </p>
-                                    </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900">
+                                        {selectedCustomerForDetails.name || 'Sans nom'}
+                                    </h3>
+                                    <p className="text-xs text-gray-500">ID #{selectedCustomerForDetails.id}</p>
                                 </div>
                             </div>
+                            <button onClick={() => setDetailsModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
 
-                            {/* Historique des feedbacks */}
+                        {/* Body */}
+                        <div className="p-6 overflow-y-auto space-y-5">
+                            {/* Contact Info Grid */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <InfoCard label="Email" value={selectedCustomerForDetails.email || '—'} icon={<AtSign className="w-4 h-4" />} />
+                                <InfoCard label="Téléphone" value={selectedCustomerForDetails.phone || '—'} icon={<Phone className="w-4 h-4" />} />
+                                <InfoCard label="Créé le" value={new Date(selectedCustomerForDetails.created_at).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' })} icon={<Calendar className="w-4 h-4" />} />
+                                <InfoCard label="Mis à jour" value={new Date(selectedCustomerForDetails.updated_at).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' })} icon={<Calendar className="w-4 h-4" />} />
+                            </div>
+
+                            {/* Feedback History */}
                             <div>
-                                <h4 className="text-lg font-black text-gray-900 mb-4 flex items-center gap-2">
-                                    <MessageSquare className="w-5 h-5 text-blue-900" />
-                                    Historique des demandes de feedback
+                                <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                    <MessageSquare className="w-4 h-4 text-gray-400" />
+                                    Historique des demandes
                                 </h4>
                                 
                                 {selectedCustomerForDetails.feedback_requests && selectedCustomerForDetails.feedback_requests.length > 0 ? (
-                                    <div className="space-y-3">
+                                    <div className="space-y-2">
                                         {selectedCustomerForDetails.feedback_requests.map((request, index) => (
-                                            <div key={request.id || index} className="bg-white border-2 border-gray-200 rounded-xl p-4">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-sm font-bold text-gray-700">
+                                            <div key={request.id || index} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xs font-medium text-gray-500 uppercase px-2 py-0.5 bg-white rounded border border-gray-200">
+                                                        {request.channel || '—'}
+                                                    </span>
+                                                    <span className="text-sm text-gray-700">
                                                         {new Date(request.created_at).toLocaleDateString('fr-FR', {
-                                                            year: 'numeric',
-                                                            month: 'short',
                                                             day: 'numeric',
+                                                            month: 'short',
+                                                            year: 'numeric',
                                                             hour: '2-digit',
                                                             minute: '2-digit'
                                                         })}
                                                     </span>
-                                                    {statusBadge(request.status)}
                                                 </div>
-                                                <div className="flex items-center gap-2 text-xs text-gray-600">
-                                                    <span className="font-bold">Canal:</span>
-                                                    <span className="px-2 py-1 bg-gray-100 rounded-lg font-bold uppercase">
-                                                        {request.channel || 'Non spécifié'}
-                                                    </span>
-                                                </div>
+                                                {getStatus(request.status)}
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-6 text-center">
-                                        <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                                        <p className="text-sm text-gray-600 font-medium">
-                                            Aucune demande de feedback pour ce client
-                                        </p>
+                                    <div className="bg-gray-50 rounded-lg p-8 text-center">
+                                        <MessageSquare className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                        <p className="text-sm text-gray-500">Aucune demande envoyée</p>
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        <div className="mt-6">
+                        {/* Footer */}
+                        <div className="p-4 border-t border-gray-100">
                             <button
                                 onClick={() => setDetailsModalOpen(false)}
-                                className="w-full py-3 rounded-xl bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 transition-all"
+                                className="w-full py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-all"
                             >
                                 Fermer
                             </button>
@@ -530,14 +520,31 @@ export default function Index({ auth, customers }) {
     );
 }
 
-function ChannelButton({ icon, label, onClick }) {
+function InfoCard({ label, value, icon }) {
+    return (
+        <div className="bg-gray-50 rounded-lg p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-gray-400">{icon}</span>
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</span>
+            </div>
+            <p className="text-sm font-semibold text-gray-900 truncate">{value}</p>
+        </div>
+    );
+}
+
+function ChannelButton({ icon, label, description, onClick }) {
     return (
         <button
             onClick={onClick}
-            className="flex flex-col items-center gap-3 p-6 border-2 border-gray-200 rounded-2xl hover:bg-gradient-to-br hover:from-emerald-50 hover:to-teal-50 hover:border-emerald-300 transition-all group hover:scale-105"
+            className="w-full flex items-center gap-3 p-3.5 border border-gray-200 rounded-xl hover:bg-emerald-50 hover:border-emerald-200 transition-all group text-left"
         >
-            <div className="text-emerald-600 group-hover:scale-110 transition-transform">{icon}</div>
-            <span className="font-bold text-gray-900">{label}</span>
+            <div className="w-10 h-10 bg-gray-100 group-hover:bg-emerald-100 rounded-lg flex items-center justify-center text-gray-500 group-hover:text-emerald-600 transition-colors flex-shrink-0">
+                {icon}
+            </div>
+            <div>
+                <span className="block text-sm font-semibold text-gray-900">{label}</span>
+                {description && <span className="block text-xs text-gray-500">{description}</span>}
+            </div>
         </button>
     );
 }
