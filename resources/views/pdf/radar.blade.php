@@ -299,10 +299,190 @@
         </table>
     </div>
 
+    {{-- Synthèse IA --}}
+    @if(!empty($summaryText))
+    <div class="section">
+        <div class="section-title">🧠 Synthèse IA</div>
+        <div style="padding: 12px 15px; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; line-height: 1.6;">
+            {{ $summaryText }}
+        </div>
+    </div>
+    @endif
+
+    {{-- Problèmes Détectés (ouverts) --}}
+    @if($detectedProblems->count() > 0)
+    <div class="section">
+        <div class="section-title">🔴 Problèmes Détectés — En attente de traitement</div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 22%;">Problème</th>
+                    <th style="width: 28%;">Détail</th>
+                    <th style="width: 25%;">Solution proposée</th>
+                    <th>Impact</th>
+                    <th>Urgence</th>
+                    <th>Effort</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($detectedProblems as $problem)
+                <tr>
+                    <td style="font-weight: 600;">{{ $problem->title }}</td>
+                    <td style="font-size: 9px;">{{ Str::limit($problem->detail, 120) }}</td>
+                    <td style="font-size: 9px;">{{ Str::limit($problem->solution, 120) }}</td>
+                    <td>
+                        @php
+                            $impact = strtolower($problem->impact ?? 'moyen');
+                            $badgeClass = 'badge-medium';
+                            if ($impact === 'fort') $badgeClass = 'badge-high';
+                            elseif ($impact === 'faible') $badgeClass = 'badge-low';
+                        @endphp
+                        <span class="badge {{ $badgeClass }}">{{ $problem->impact ?? '—' }}</span>
+                    </td>
+                    <td>
+                        @php
+                            $urgency = strtolower($problem->urgency ?? '');
+                            $uBadge = 'badge-info';
+                            if (str_contains($urgency, 'imm')) $uBadge = 'badge-critical';
+                            elseif (str_contains($urgency, 'court')) $uBadge = 'badge-warning';
+                        @endphp
+                        <span class="badge {{ $uBadge }}">{{ $problem->urgency ?? '—' }}</span>
+                    </td>
+                    <td>
+                        @php
+                            $effort = strtolower($problem->effort ?? 'moyen');
+                            $eBadge = 'badge-info';
+                            if ($effort === 'faible') $eBadge = 'badge-low';
+                            elseif (str_contains($effort, 'lev') || str_contains($effort, 'élev')) $eBadge = 'badge-high';
+                        @endphp
+                        <span class="badge {{ $eBadge }}">{{ $problem->effort ?? '—' }}</span>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @endif
+
+    {{-- Décisions Suggérées (ouvertes) --}}
+    @if($detectedDecisions->count() > 0)
+    <div class="section">
+        <div class="section-title">💡 Décisions Suggérées — En attente</div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 25%;">Décision</th>
+                    <th style="width: 40%;">Détail</th>
+                    <th>Impact</th>
+                    <th>Urgence</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($detectedDecisions as $decision)
+                <tr>
+                    <td style="font-weight: 600;">{{ $decision->title }}</td>
+                    <td style="font-size: 9px;">{{ Str::limit($decision->detail, 180) }}</td>
+                    <td>
+                        @php
+                            $impact = strtolower($decision->impact ?? 'moyen');
+                            $badgeClass = 'badge-medium';
+                            if ($impact === 'fort') $badgeClass = 'badge-high';
+                            elseif ($impact === 'faible') $badgeClass = 'badge-low';
+                        @endphp
+                        <span class="badge {{ $badgeClass }}">{{ $decision->impact ?? '—' }}</span>
+                    </td>
+                    <td>
+                        @php
+                            $urgency = strtolower($decision->urgency ?? '');
+                            $uBadge = 'badge-info';
+                            if (str_contains($urgency, 'imm')) $uBadge = 'badge-critical';
+                            elseif (str_contains($urgency, 'court')) $uBadge = 'badge-warning';
+                        @endphp
+                        <span class="badge {{ $uBadge }}">{{ $decision->urgency ?? '—' }}</span>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @endif
+
+    {{-- Problèmes/Décisions pris en charge (avec tâche) --}}
+    @if($handledProblems->count() > 0 || $handledDecisions->count() > 0)
+    <div class="section">
+        <div class="section-title">✅ Éléments pris en charge (tâche créée)</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th style="width: 25%;">Titre</th>
+                    <th style="width: 30%;">Détail</th>
+                    <th>Impact</th>
+                    <th>Statut tâche</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($handledProblems as $item)
+                <tr>
+                    <td><span class="badge badge-critical">Problème</span></td>
+                    <td style="font-weight: 600;">{{ $item->title }}</td>
+                    <td style="font-size: 9px;">{{ Str::limit($item->detail, 150) }}</td>
+                    <td>
+                        @php
+                            $impact = strtolower($item->impact ?? 'moyen');
+                            $badgeClass = 'badge-medium';
+                            if ($impact === 'fort') $badgeClass = 'badge-high';
+                            elseif ($impact === 'faible') $badgeClass = 'badge-low';
+                        @endphp
+                        <span class="badge {{ $badgeClass }}">{{ $item->impact ?? '—' }}</span>
+                    </td>
+                    <td>
+                        @php
+                            $task = $item->tasks->first();
+                            $statusLabels = ['not_started' => 'Non démarré', 'in_progress' => 'En cours', 'completed' => 'Terminé'];
+                            $statusBadge = 'badge-info';
+                            if ($task && $task->status === 'completed') $statusBadge = 'badge-low';
+                            elseif ($task && $task->status === 'in_progress') $statusBadge = 'badge-warning';
+                        @endphp
+                        <span class="badge {{ $statusBadge }}">{{ $task ? ($statusLabels[$task->status] ?? $task->status) : '—' }}</span>
+                    </td>
+                </tr>
+                @endforeach
+                @foreach($handledDecisions as $item)
+                <tr>
+                    <td><span class="badge badge-warning">Décision</span></td>
+                    <td style="font-weight: 600;">{{ $item->title }}</td>
+                    <td style="font-size: 9px;">{{ Str::limit($item->detail, 150) }}</td>
+                    <td>
+                        @php
+                            $impact = strtolower($item->impact ?? 'moyen');
+                            $badgeClass = 'badge-medium';
+                            if ($impact === 'fort') $badgeClass = 'badge-high';
+                            elseif ($impact === 'faible') $badgeClass = 'badge-low';
+                        @endphp
+                        <span class="badge {{ $badgeClass }}">{{ $item->impact ?? '—' }}</span>
+                    </td>
+                    <td>
+                        @php
+                            $task = $item->tasks->first();
+                            $statusLabels = ['not_started' => 'Non démarré', 'in_progress' => 'En cours', 'completed' => 'Terminé'];
+                            $statusBadge = 'badge-info';
+                            if ($task && $task->status === 'completed') $statusBadge = 'badge-low';
+                            elseif ($task && $task->status === 'in_progress') $statusBadge = 'badge-warning';
+                        @endphp
+                        <span class="badge {{ $statusBadge }}">{{ $task ? ($statusLabels[$task->status] ?? $task->status) : '—' }}</span>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @endif
+
     {{-- Signals --}}
     @if(!empty($data['signals']))
     <div class="section">
-        <div class="section-title">⚠️ Signaux Détectés</div>
+        <div class="section-title">⚠️ Signaux Statistiques</div>
         <table>
             <thead>
                 <tr>
@@ -327,39 +507,6 @@
                         <span class="badge {{ $badgeClass }}">{{ strtoupper($signal['severity'] ?? '') }}</span>
                     </td>
                     <td style="font-size: 9px;">{{ $signal['detail'] ?? '' }}</td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
-    @endif
-
-    {{-- Actions Recommandées --}}
-    @if(!empty($data['recommendedActions']))
-    <div class="section">
-        <div class="section-title">✅ Actions Recommandées</div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Action</th>
-                    <th>Priorité</th>
-                    <th>Détail</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($data['recommendedActions'] as $action)
-                <tr>
-                    <td>{{ $action['title'] ?? '' }}</td>
-                    <td>
-                        @php
-                            $priority = strtolower($action['priority'] ?? 'low');
-                            $badgeClass = 'badge-low';
-                            if ($priority === 'high') $badgeClass = 'badge-high';
-                            elseif ($priority === 'medium') $badgeClass = 'badge-medium';
-                        @endphp
-                        <span class="badge {{ $badgeClass }}">{{ strtoupper($action['priority'] ?? '') }}</span>
-                    </td>
-                    <td style="font-size: 9px;">{{ $action['detail'] ?? '' }}</td>
                 </tr>
                 @endforeach
             </tbody>

@@ -69,7 +69,12 @@ class RadarAnalysisService
 	public function analyzeWithCache(int $companyId, array $feedbacks, array $sentimentStats = [], int $feedbacksWithComments = 0, array $resolutionContext = []): array
 	{
 		if (empty($feedbacks)) {
-			return $this->fallbackAnalysis($feedbacks, $sentimentStats, 'Aucun feedback à analyser pour le moment.');
+			$total = (int) (($sentimentStats['positive'] ?? 0) + ($sentimentStats['neutral'] ?? 0) + ($sentimentStats['negative'] ?? 0));
+			$note = $total > 0
+				? 'Tous les feedbacks actuels sont déjà pris en charge via des tâches.'
+				: 'Aucun feedback à analyser pour le moment.';
+
+			return $this->fallbackAnalysis($feedbacks, $sentimentStats, $note);
 		}
 
 		// 1️⃣ Hash includes resolution state so resolving a feedback invalidates cache

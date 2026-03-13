@@ -514,6 +514,7 @@ class DashboardController extends Controller
         // ── Générer le résumé IA avec persistance des problèmes détectés ──
         $feedbackSummary = $this->generateFeedbackSummary($radarService, $company, $data, $operationalData);
 
+
         // ── Persister les problèmes & décisions détectés par l'IA ──
         $this->syncDetectedProblems($company, $feedbackSummary, $data['analysisPayload']);
 
@@ -822,14 +823,75 @@ class DashboardController extends Controller
     private function exportRadarPDF($company, $data, $days)
     {
         $filename = 'radar-ia-' . $company->id . '-' . now()->format('Ymd_His') . '.pdf';
-        
+
+        // Charger les problèmes détectés (ouverts, sans tâche)
+        $detectedProblems = \App\Models\DetectedProblem::where('company_id', $company->id)
+            ->notResolved()
+            ->problems()
+            ->whereDoesntHave('tasks')
+            ->withCount('feedbacks')
+            ->orderByRaw("CASE WHEN urgency LIKE '%imm%' THEN 0 WHEN urgency LIKE '%court%' THEN 1 ELSE 2 END")
+            ->get();
+
+        // Charger les décisions détectées (ouvertes, sans tâche)
+        $detectedDecisions = \App\Models\DetectedProblem::where('company_id', $company->id)
+            ->notResolved()
+            ->decisions()
+            ->whereDoesntHave('tasks')
+            ->withCount('feedbacks')
+            ->orderByRaw("CASE WHEN urgency LIKE '%imm%' THEN 0 WHEN urgency LIKE '%court%' THEN 1 ELSE 2 END")
+            ->get();
+
+        // Charger aussi les problèmes/décisions avec tâche (pour historique complet)
+        $handledProblems = \App\Models\DetectedProblem::where('company_id', $company->id)
+            ->problems()
+            ->whereHas('tasks')
+            ->with('tasks')
+            ->withCount('feedbacks')
+            ->latest()
+            ->take(10)
+            ->get();
+
+        $handledDecisions = \App\Models\DetectedProblem::where('company_id', $company->id)
+            ->decisions()
+            ->whereHas('tasks')
+            ->with('tasks')
+            ->withCount('feedbacks')
+            ->latest()
+            ->take(10)
+            ->get();
+
+        // Résumé IA (depuis le cache si disponible)
+        $summaryText = null;
+        $cachePrefix = "radar-summary-{$company->id}-";
+        $summaryPayload = $data['summaryPayload'] ?? [];
+        if (!empty($summaryPayload)) {
+            $payloadSignature = collect($summaryPayload)->pluck('id')->join(',');
+            $totalFeedbacks = (int) ($data['stats']['total'] ?? 0);
+            $cacheKey = $cachePrefix . md5(
+                'v3'
+                . json_encode($data['sentiment'])
+                . '|total:' . $totalFeedbacks
+                . '|payload:' . $payloadSignature
+            );
+            $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+            if ($cached && !empty($cached['summary'])) {
+                $summaryText = $cached['summary'];
+            }
+        }
+
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.radar', [
             'company' => $company,
             'data' => $data,
             'days' => $days,
             'generatedAt' => now()->format('d/m/Y H:i'),
+            'detectedProblems' => $detectedProblems,
+            'detectedDecisions' => $detectedDecisions,
+            'handledProblems' => $handledProblems,
+            'handledDecisions' => $handledDecisions,
+            'summaryText' => $summaryText,
         ]);
-        
+
         return $pdf->download($filename);
     }
 
@@ -855,7 +917,7 @@ class DashboardController extends Controller
             ->whereBetween('created_at', [$prevPeriodStart, $prevPeriodEnd])
             ->get();
 
-        // ── LAYER 2: UNRESOLVED feedbacks only → IA Analysis, Signals, Actions ──
+        // ── LAYER 2: UNRESOLVED feedbacks only → IA Analysis (new problems detection) ──
         // Exclure les feedbacks déjà liés à un problème ayant une tâche
         $analysisFeedbacks = Feedback::query()
             ->whereHas('feedbackRequest', function ($q) use ($company) {
@@ -868,6 +930,18 @@ class DashboardController extends Controller
             ->whereBetween('created_at', [$periodStart, $periodEnd])
             ->latest()
             ->take(200)
+            ->get();
+
+        // ── LAYER 3: ALL feedbacks with comments → Summary (vue globale) ──
+        $summaryFeedbacks = Feedback::query()
+            ->whereHas('feedbackRequest', function ($q) use ($company) {
+                $q->where('company_id', $company->id);
+            })
+            ->whereNotNull('comment')
+            ->with(['feedbackRequest.customer'])
+            ->whereBetween('created_at', [$periodStart, $periodEnd])
+            ->latest()
+            ->take(100)
             ->get();
 
         // ── Resolution context for IA prompts ──
@@ -1136,6 +1210,15 @@ class DashboardController extends Controller
             'benchmarks' => $benchmarks,
             'healthScore' => $healthScore,
             'analysisPayload' => $payload,
+            'summaryPayload' => $summaryFeedbacks->map(function ($f) {
+                return [
+                    'id' => $f->id,
+                    'rating' => $f->rating,
+                    'comment' => $f->comment,
+                    'customer' => $f->feedbackRequest?->customer?->name,
+                    'created_at' => optional($f->created_at)->format('Y-m-d'),
+                ];
+            })->values()->all(),
             'sentiment' => $sentiment,
             'feedbacksWithComments' => $analysisFeedbacks->count(),
             'resolutionContext' => [
@@ -1527,29 +1610,42 @@ class DashboardController extends Controller
      */
     private function generateFeedbackSummary(RadarAnalysisService $radarService, $company, array $data, array $ops): array
     {
-        $cacheKey = "radar-summary-{$company->id}-" . md5(json_encode($data['sentiment']) . json_encode($ops));
+        $summaryVersion = 'v3';
+        $payloadSignature = collect($data['summaryPayload'] ?? [])->pluck('id')->join(',');
+        $totalFeedbacks = (int) ($data['stats']['total'] ?? 0);
+        $cacheKey = "radar-summary-{$company->id}-" . md5(
+            $summaryVersion
+            . json_encode($data['sentiment'])
+            . '|total:' . $totalFeedbacks
+            . '|payload:' . $payloadSignature
+        );
 
         return \Illuminate\Support\Facades\Cache::remember($cacheKey, 3600, function () use ($data, $ops) {
-            $feedbacks = $data['analysisPayload'] ?? [];
+            // Layer 3: ALL feedbacks with comments for the summary text
+            $summaryFeedbacks = $data['summaryPayload'] ?? [];
+            // Layer 2: UNRESOLVED feedbacks not linked to tasks for problems/decisions
+            $analysisFeedbacks = $data['analysisPayload'] ?? [];
             $stats = $data['stats'] ?? [];
             $sentiment = $data['sentiment'] ?? [];
 
-            if (empty($feedbacks)) {
+            if (empty($summaryFeedbacks)) {
                 return [
                     'status' => 'empty',
-                    'summary' => 'Aucun feedback disponible pour générer un résumé.',
+                    'summary' => 'Aucun feedback avec commentaire disponible pour le moment.',
                     'decisions' => [],
                     'problems' => [],
                 ];
             }
 
-            // Include feedback IDs so IA can reference which feedbacks justify each problem/decision
-            $entries = collect($feedbacks)
+            // Le résumé se base sur TOUS les feedbacks (summaryFeedbacks)
+            // Les problèmes/décisions se basent sur les feedbacks non traités (analysisFeedbacks)
+            $entries = collect($summaryFeedbacks)
                 ->take(50)
                 ->map(fn($f, $i) => "[ID:{$f['id']}] ★{$f['rating']}/5 — " . mb_substr($f['comment'] ?? '', 0, 200))
                 ->implode("\n");
 
-            $feedbackIds = collect($feedbacks)->take(50)->pluck('id')->values()->all();
+            $feedbackIds = collect($analysisFeedbacks)->take(50)->pluck('id')->values()->all();
+            $allFeedbackIds = collect($summaryFeedbacks)->take(50)->pluck('id')->values()->all();
 
             $opsContext = json_encode([
                 'tasks_open' => $ops['tasks']['open'] ?? 0,

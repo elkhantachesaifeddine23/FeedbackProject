@@ -253,7 +253,7 @@ export default function RadarIA({
 
     const handleExportPdf = () => {
         setExportingPdf(true);
-        window.location.assign(route('radar.export.pdf', { days: period?.days ?? 30 }));
+        window.location.assign(route('radar.export', { format: 'pdf', days: period?.days ?? 30 }));
         setTimeout(() => setExportingPdf(false), 2500);
     };
 
