@@ -132,7 +132,7 @@ class FeedbackRequestController extends Controller
             ]);
 
             try {
-                $link = rtrim(config('app.url'), '/') . '/feedback/' . $feedbackRequest->token;
+                $link = $this->buildFeedbackLink($feedbackRequest, $request);
 
                 $sms = app(BrevoService::class)->sendSms(
                     $feedbackRequest->customer->phone,
@@ -266,7 +266,7 @@ class FeedbackRequestController extends Controller
                     }
 
                     try {
-                        $link = rtrim(config('app.url'), '/') . '/feedback/' . $feedbackRequest->token;
+                        $link = $this->buildFeedbackLink($feedbackRequest, $request);
                         $sms = app(BrevoService::class)->sendSms(
                             $feedbackRequest->customer->phone,
                             "Bonjour 👋\nMerci de donner votre avis : " . $link
@@ -422,7 +422,7 @@ class FeedbackRequestController extends Controller
                 ]);
 
                 // Préparer les variables pour le template
-                $link = rtrim(config('app.url'), '/') . '/feedback/' . $feedbackRequest->token;
+                $link = $this->buildFeedbackLink($feedbackRequest, $request);
                 $variables = [
                     'Nom' => $customer->name ?? 'Client',
                     'Nom de l\'entreprise' => $company->name,
@@ -430,10 +430,11 @@ class FeedbackRequestController extends Controller
                 ];
 
                 // Remplacer les variables dans le message
-                $message = $data['message'];
+                $message = str_replace('{Votre lien}', '', $data['message']);
                 foreach ($variables as $key => $value) {
                     $message = str_replace('{' . $key . '}', $value, $message);
                 }
+                $message = trim(preg_replace("/\n{3,}/", "\n\n", $message));
 
                 // Envoyer selon le canal
                 if ($data['channel'] === 'email') {
@@ -450,8 +451,13 @@ class FeedbackRequestController extends Controller
                             $subject = str_replace('{' . $key . '}', $value, $subject);
                         }
 
-                        // Envoyer l'email avec le message personnalisé
-                        \Illuminate\Support\Facades\Mail::raw($message, function ($mail) use ($customer, $subject) {
+                        // Envoyer l'email en HTML avec bouton CTA
+                        \Illuminate\Support\Facades\Mail::send('emails.feedback-request-custom', [
+                            'customer' => $customer->name ?? 'Client',
+                            'company' => $company->name,
+                            'messageBody' => $message,
+                            'link' => $link,
+                        ], function ($mail) use ($customer, $subject) {
                             $mail->to($customer->email)
                                 ->subject($subject);
                         });
@@ -515,5 +521,25 @@ class FeedbackRequestController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    private function buildFeedbackLink(FeedbackRequest $feedbackRequest, ?Request $request = null): string
+    {
+        $url = route('feedback.show', ['token' => $feedbackRequest->token], true);
+
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+
+        $baseUrl = rtrim((string) config('app.url', ''), '/');
+        if ($baseUrl !== '') {
+            return $baseUrl . '/feedback/' . $feedbackRequest->token;
+        }
+
+        if ($request) {
+            return rtrim($request->getSchemeAndHttpHost(), '/') . '/feedback/' . $feedbackRequest->token;
+        }
+
+        return '/feedback/' . $feedbackRequest->token;
     }
 }
