@@ -37,6 +37,10 @@ RUN docker-php-ext-install \
     mbstring \
     bcmath
 
+# Install and enable Redis extension (required for CACHE/SESSION/QUEUE via Redis)
+RUN pecl install redis \
+    && docker-php-ext-enable redis
+
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
