@@ -1,6 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import ProGate from '@/Components/ProGate';
 import {
     FileText, Download, TrendingUp, AlertCircle, Target, Lightbulb,
     BarChart3, Brain, Globe, Zap, CheckCircle2, Clock, AlertTriangle,
@@ -177,6 +178,7 @@ function Spinner() {
 
 export default function RadarIA({
     auth,
+    hasAccess = true,
     stats,
     analysis,
     lastUpdated,
@@ -279,6 +281,7 @@ export default function RadarIA({
         <AuthenticatedLayout user={auth.user} header="Radar IA">
             <Head title="Radar IA - Intelligence Décisionnelle" />
 
+            <ProGate feature="ai_radar" hasAccess={hasAccess}>
             <div className="space-y-8 pb-12">
 
                 {/* ═══════════════ HERO HEADER ═══════════════ */}
@@ -660,6 +663,7 @@ export default function RadarIA({
 
 
             </div>
+            </ProGate>
         </AuthenticatedLayout>
     );
 }

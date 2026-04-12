@@ -50,7 +50,7 @@ export default function Welcome({ auth }) {
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <img src="/images/logo_Luminea2.png" alt="Luminea" className="h-20 w-auto" />
+                                <img src="/images/logo_Luminea2.png" alt="Luminea" className="h-24 w-auto" />
                             </div>
 
                             <nav className="flex items-center gap-3">
@@ -478,7 +478,7 @@ export default function Welcome({ auth }) {
                 <footer className="border-t border-gray-200 py-10">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                            <img src="/images/logo_Luminea2.png" alt="Luminea" className="h-12 w-auto" />
+                            <img src="/images/logo_Luminea2.png" alt="Luminea" className="h-16 w-auto" />
                         </div>
                         <div className="text-xs text-gray-500">© 2026 Luminea. Tous droits réservés.</div>
                     </div>

@@ -30,12 +30,11 @@ class SettingsController extends Controller
             'company' => $user->company ? [
                 'id' => $user->company->id,
                 'name' => $user->company->name,
-                'google_oauth_token' => $user->company->google_oauth_token,
-                'google_oauth_refresh_token' => $user->company->google_oauth_refresh_token,
-                'google_oauth_expires_at' => $user->company->google_oauth_expires_at?->toIso8601String(),
                 'google_business_profile_connected' => $user->company->google_business_profile_connected,
                 'google_business_profile_id' => $user->company->google_business_profile_id,
                 'google_last_sync_at' => $user->company->google_last_sync_at?->toIso8601String(),
+                'google_maps_name' => $user->company->google_maps_name,
+                'google_place_id' => $user->company->google_place_id,
             ] : null,
         ]);
     }
@@ -98,5 +97,37 @@ class SettingsController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/')->with('success', 'Votre compte a été supprimé');
+    }
+
+    /**
+     * Met à jour les paramètres Google Maps (nom du business + place_id)
+     */
+    public function updateGoogleMaps(Request $request)
+    {
+        $validated = $request->validate([
+            'google_maps_name' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        $company = $user->company;
+
+        if (!$company) {
+            return back()->with('error', 'Aucune entreprise trouvée');
+        }
+
+        // Si le nom change, réinitialiser le place_id pour forcer une nouvelle recherche
+        $oldName = $company->google_maps_name;
+        $newName = $validated['google_maps_name'];
+
+        $updateData = ['google_maps_name' => $newName];
+
+        if ($oldName !== $newName) {
+            $updateData['google_place_id'] = null; // Force nouvelle recherche
+        }
+
+        $company->update($updateData);
+
+        return back()->with('success', 'Nom Google Maps mis à jour avec succès');
     }
 }

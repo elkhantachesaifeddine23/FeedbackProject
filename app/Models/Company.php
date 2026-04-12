@@ -15,6 +15,7 @@ class Company extends Model
         'name',
         'sector',
         'google_place_id',
+        'google_maps_name',
         'google_review_url',
         'logo_url',
         'design_settings',
@@ -66,5 +67,50 @@ class Company extends Model
     public function feedbackTemplates()
     {
         return $this->hasMany(FeedbackTemplate::class);
+    }
+
+    public function smsAddonPurchases()
+    {
+        return $this->hasMany(SmsAddonPurchase::class);
+    }
+
+    public function smsUsageLogs()
+    {
+        return $this->hasMany(SmsUsageLog::class);
+    }
+
+    /* ── Billing helpers ── */
+
+    public function activeSubscription(): ?Subscription
+    {
+        $sub = $this->subscription;
+        return ($sub && $sub->isActive()) ? $sub : null;
+    }
+
+    public function currentPlan(): string
+    {
+        return $this->activeSubscription()?->plan ?? 'free';
+    }
+
+    public function hasFeature(string $feature): bool
+    {
+        return $this->activeSubscription()?->hasFeature($feature) ?? false;
+    }
+
+    /**
+     * Total remaining SMS addon units (lifetime, across all purchases).
+     */
+    public function addonSmsUnitsRemaining(): int
+    {
+        return (int) $this->smsAddonPurchases()->sum('units_remaining');
+    }
+
+    /**
+     * Total SMS units available = monthly remaining + addon remaining.
+     */
+    public function totalSmsUnitsAvailable(): float
+    {
+        $monthly = $this->activeSubscription()?->remainingMonthlySmsUnits() ?? 0;
+        return $monthly + $this->addonSmsUnitsRemaining();
     }
 }

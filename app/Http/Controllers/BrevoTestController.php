@@ -68,9 +68,14 @@ class BrevoTestController extends Controller
         }
 
         if ($feedbackRequest->channel === 'sms') {
+            $phone = $feedbackRequest->customer?->phone ?? $feedbackRequest->recipient_phone;
+            if (empty($phone)) {
+                return response()->json(['error' => 'Aucun numéro disponible pour ce rappel'], 422);
+            }
+
             $link = rtrim(config('app.url'), '/') . '/feedback/' . $feedbackRequest->token;
             $brevo->sendSms(
-                $feedbackRequest->customer->phone,
+                $phone,
                 "Rappel 👋\nMerci de donner votre avis : " . $link
             );
         } else {

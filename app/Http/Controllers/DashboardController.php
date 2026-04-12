@@ -445,6 +445,30 @@ class DashboardController extends Controller
     public function radar(RadarAnalysisService $radarService, ActionableInsightsService $insightsService)
     {
         $company = Auth::user()->company;
+
+        // Show gate page when feature not available (no expensive AI call)
+        if (!$company->hasFeature('ai_radar')) {
+            return Inertia::render('Dashboard/RadarIA', [
+                'hasAccess'        => false,
+                'period'           => ['days' => 30],
+                'stats'            => null,
+                'channels'         => [],
+                'trends'           => [],
+                'signals'          => [],
+                'recommendedActions' => [],
+                'allActions'       => [],
+                'benchmarks'       => null,
+                'healthScore'      => null,
+                'analysis'         => null,
+                'lastUpdated'      => null,
+                'operationalData'  => [],
+                'feedbackSummary'  => [],
+                'unresolvedNegative' => [],
+                'detectedProblems' => [],
+                'detectedDecisions' => [],
+            ]);
+        }
+
         $data = $this->buildRadarData($company, 30);
 
         // ── Enrichir avec données opérationnelles (tasks, replies, resolution) ──
@@ -579,6 +603,7 @@ class DashboardController extends Controller
         }
 
         return Inertia::render('Dashboard/RadarIA', [
+            'hasAccess' => true,
             'period' => $data['period'],
             'stats' => $data['stats'],
             'channels' => $data['channels'],

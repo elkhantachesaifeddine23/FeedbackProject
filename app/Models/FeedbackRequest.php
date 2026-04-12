@@ -9,6 +9,8 @@ class FeedbackRequest extends Model
 {
     use HasFactory;
 
+    public const MAX_REMINDERS = 3;
+
     protected $fillable = [
         'company_id',
         'customer_id',
@@ -20,6 +22,15 @@ class FeedbackRequest extends Model
         'provider_response',
         'sent_at',
         'responded_at',
+        'reminder_count',
+        'last_reminder_at',
+        'next_reminder_at',
+        'recipient_name',
+        'recipient_email',
+        'recipient_phone',
+        'recipient_hash',
+        'consent_at',
+        'consent_source',
         'detected_language',
         'feedback_text',
     ];
@@ -27,6 +38,9 @@ class FeedbackRequest extends Model
     protected $casts = [
         'sent_at' => 'datetime',
         'responded_at' => 'datetime',
+        'last_reminder_at' => 'datetime',
+        'next_reminder_at' => 'datetime',
+        'consent_at' => 'datetime',
     ];
 
     public function company()

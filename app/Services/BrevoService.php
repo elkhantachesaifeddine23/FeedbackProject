@@ -35,8 +35,13 @@ class BrevoService
 
     public function sendFeedbackEmail(FeedbackRequest $feedbackRequest): void
     {
+        $to = $feedbackRequest->customer?->email ?? $feedbackRequest->recipient_email;
+        if (empty($to)) {
+            throw new \RuntimeException('Aucun email destinataire disponible pour cette demande de feedback.');
+        }
+
         Log::info('Brevo SMTP send (feedback)', [
-            'to' => $feedbackRequest->customer->email,
+            'to' => $to,
             'mailer' => config('mail.default'),
             'host' => config('mail.mailers.smtp.host'),
             'port' => config('mail.mailers.smtp.port'),
@@ -44,14 +49,19 @@ class BrevoService
             'from' => config('mail.from.address'),
         ]);
 
-        Mail::to($feedbackRequest->customer->email)
+        Mail::to($to)
             ->send(new FeedbackRequestMail($feedbackRequest));
     }
 
     public function sendReminderEmail(FeedbackRequest $feedbackRequest): void
     {
+        $to = $feedbackRequest->customer?->email ?? $feedbackRequest->recipient_email;
+        if (empty($to)) {
+            throw new \RuntimeException('Aucun email destinataire disponible pour le rappel.');
+        }
+
         Log::info('Brevo SMTP send (reminder)', [
-            'to' => $feedbackRequest->customer->email,
+            'to' => $to,
             'mailer' => config('mail.default'),
             'host' => config('mail.mailers.smtp.host'),
             'port' => config('mail.mailers.smtp.port'),
@@ -59,7 +69,7 @@ class BrevoService
             'from' => config('mail.from.address'),
         ]);
 
-        Mail::to($feedbackRequest->customer->email)
+        Mail::to($to)
             ->send(new FeedbackReminderMail($feedbackRequest));
     }
 

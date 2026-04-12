@@ -5,7 +5,7 @@ export default function GuestLayout({ children }) {
         <div className="flex min-h-screen flex-col items-center pt-6 sm:justify-center sm:pt-0 bg-white">
             <div>
                 <Link href="/" className="flex items-center justify-center">
-                    <img src="/images/logo_Luminea2.png" alt="Luminea" className="h-24 w-auto" />
+                    <img src="/images/logo_Luminea2.png" alt="Luminea" className="h-28 w-auto" />
                 </Link>
             </div>
 

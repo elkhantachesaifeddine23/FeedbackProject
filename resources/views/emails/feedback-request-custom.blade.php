@@ -35,8 +35,6 @@
             </div>
 
             <div class="content">
-                <p>Bonjour {{ $customer }},</p>
-
                 <div class="message">{!! nl2br(e($messageBody)) !!}</div>
 
                 <div class="cta-wrap">
@@ -45,9 +43,6 @@
                     </a>
                     <div class="fallback">Si le bouton ne fonctionne pas, copiez ce lien : {{ $link }}</div>
                 </div>
-
-                <p style="margin-top: 0;">Merci pour votre temps 🙏</p>
-                <p style="margin-bottom: 0;">L’équipe {{ $company }}</p>
             </div>
 
             <div class="footer">

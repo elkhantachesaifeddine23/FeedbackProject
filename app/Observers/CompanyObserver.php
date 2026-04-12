@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Company;
 use App\Models\FeedbackTemplate;
+use App\Models\Subscription;
 use Illuminate\Support\Facades\Log;
 
 class CompanyObserver
@@ -13,6 +14,23 @@ class CompanyObserver
      */
     public function created(Company $company): void
     {
+        // Créer automatiquement l'abonnement Free
+        try {
+            Subscription::create([
+                'company_id'          => $company->id,
+                'plan'                => 'free',
+                'status'              => 'active',
+                'monthly_email_limit' => 10,
+                'monthly_sms_units'   => 0,
+                'emails_sent_this_period'    => 0,
+                'sms_units_used_this_period' => 0,
+            ]);
+
+            Log::info("Subscription Free créée pour l'entreprise: {$company->name}");
+        } catch (\Exception $e) {
+            Log::error("Erreur lors de la création de l'abonnement pour l'entreprise {$company->id}: " . $e->getMessage());
+        }
+
         // Créer automatiquement les templates par défaut pour la nouvelle entreprise
         try {
             // Template SMS

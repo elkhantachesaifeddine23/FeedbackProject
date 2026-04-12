@@ -2,7 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Models\FeedbackRequest;
 use App\Services\ReminderService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -15,11 +14,11 @@ class SendFeedbackReminderJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public function __construct(
-        public FeedbackRequest $feedbackRequest
+        public int $feedbackRequestId
     ) {}
 
     public function handle(ReminderService $reminderService): void
     {
-        $reminderService->sendReminder($this->feedbackRequest);
+        $reminderService->sendReminderById($this->feedbackRequestId);
     }
 }

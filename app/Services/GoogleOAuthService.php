@@ -29,10 +29,7 @@ class GoogleOAuthService
             'client_id' => $this->clientId,
             'redirect_uri' => $this->redirectUri,
             'response_type' => 'code',
-            'scope' => implode(' ', [
-                'https://www.googleapis.com/auth/business.manage',
-                'https://www.googleapis.com/auth/businesscommunications',
-            ]),
+            'scope' => 'https://www.googleapis.com/auth/business.manage',
             'access_type' => 'offline',
             'prompt' => 'consent',
         ];

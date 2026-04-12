@@ -1,8 +1,9 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import ProGate from '@/Components/ProGate';
 import { ListTodo, Zap, Clock, CheckCircle2, Plus, Loader2 } from 'lucide-react';
 
-export default function TasksIndex({ auth, tasks, statusOptions, importanceOptions }) {
+export default function TasksIndex({ auth, hasAccess = true, tasks, statusOptions, importanceOptions }) {
     const { data, setData, post, processing, reset, errors } = useForm({
         title: '',
         description: '',
@@ -32,6 +33,7 @@ export default function TasksIndex({ auth, tasks, statusOptions, importanceOptio
         <AuthenticatedLayout user={auth.user} header="Tâches">
             <Head title="Tâches" />
 
+            <ProGate feature="tasks" hasAccess={hasAccess}>
             <div className="space-y-8">
                 {/* Premium Hero */}
                 <div className="relative overflow-hidden bg-gradient-to-br from-purple-600 via-fuchsia-600 to-pink-600 rounded-3xl shadow-2xl">
@@ -252,6 +254,7 @@ export default function TasksIndex({ auth, tasks, statusOptions, importanceOptio
                     )}
                 </div>
             </div>
+            </ProGate>
         </AuthenticatedLayout>
     );
 }

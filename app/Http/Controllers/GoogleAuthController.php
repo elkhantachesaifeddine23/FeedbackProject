@@ -79,7 +79,30 @@ class GoogleAuthController extends Controller
                 'company_id' => $company->id,
             ]);
 
-            return redirect()->route('settings.index')->with('success', 'Google Business Profile connected successfully!');
+            $successMessage = 'Google Business Profile connecté avec succès!';
+
+            // Synchroniser automatiquement les avis existants
+            try {
+                $gbpService = new GoogleBusinessProfileService($company);
+
+                // syncReviews() essaie GBP d'abord, puis Places API en fallback
+                $syncResult = $gbpService->syncReviews();
+                $successMessage = "Google connecté! {$syncResult['synced']} avis synchronisés, {$syncResult['skipped']} déjà existants.";
+
+                Log::info('Auto-sync completed on connect', [
+                    'company_id' => $company->id,
+                    'synced' => $syncResult['synced'],
+                    'skipped' => $syncResult['skipped'],
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Auto-sync failed (non-blocking)', [
+                    'error' => $e->getMessage(),
+                ]);
+
+                $successMessage = 'Google connecté, mais la récupération des avis a échoué: ' . $e->getMessage();
+            }
+
+            return redirect()->route('settings.index')->with('success', $successMessage);
         } catch (\Exception $e) {
             Log::error('Failed to exchange Google OAuth token', [
                 'error' => $e->getMessage(),
@@ -109,7 +132,7 @@ class GoogleAuthController extends Controller
                 $oauthService->revokeToken($company->google_oauth_token);
             }
 
-            // Nettoyer les colonnes OAuth
+            // Nettoyer les colonnes OAuth (garder place_id et maps_name pour la reconnexion)
             $company->update([
                 'google_oauth_token' => null,
                 'google_oauth_refresh_token' => null,
@@ -117,6 +140,7 @@ class GoogleAuthController extends Controller
                 'google_business_profile_connected' => false,
                 'google_business_profile_id' => null,
                 'google_last_sync_at' => null,
+                // google_place_id et google_maps_name sont GARDÉS intentionnellement
             ]);
 
             Log::info('Google OAuth disconnected', [

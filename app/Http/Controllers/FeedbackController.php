@@ -30,7 +30,7 @@ class FeedbackController extends Controller
                 'token' => $f->token,
                 'customer' => [
                     'id' => $f->customer?->id,
-                    'name' => $f->customer?->name ?? 'Client Google',
+                    'name' => $f->customer?->name ?? $f->recipient_name ?? 'Client Google',
                     'email' => $f->customer?->email,
                 ],
                 'status' => $f->status,
@@ -235,6 +235,7 @@ class FeedbackController extends Controller
         $feedbackRequest->update([
             'status'              => 'completed',
             'responded_at'        => now(),
+            'next_reminder_at'    => null,
             'detected_language'   => $detectedLanguage,
             'feedback_text'       => $request->comment,
         ]);

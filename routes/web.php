@@ -19,7 +19,9 @@ use App\Http\Controllers\{
     TaskController,
     HealthController,
     BrevoTestController,
-    GoogleAuthController
+    GoogleAuthController,
+    BillingController,
+    StripeWebhookController
 };
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminRadarController;
@@ -74,6 +76,15 @@ Route::get('/feedback-requests/{feedbackRequest}/qr', [FeedbackRequestController
 
 /*
 |--------------------------------------------------------------------------
+| Stripe Webhook (must be outside CSRF / auth)
+|--------------------------------------------------------------------------
+*/
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])
+    ->name('stripe.webhook')
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class]);
+
+/*
+|--------------------------------------------------------------------------
 | Authenticated routes
 |--------------------------------------------------------------------------
 */
@@ -114,10 +125,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Génération IA d'une réponse
     Route::post('/feedback/{id}/replies/ai', [FeedbackReplyController::class, 'generateAIReply'])
+        ->middleware('feature:ai_replies')
         ->name('feedback.replies.ai');
 
     // Génération IA synchrone (retourne le contenu généré en JSON)
     Route::post('/feedback/{id}/replies/ai/generate', [FeedbackReplyController::class, 'generateAIReplySync'])
+        ->middleware('feature:ai_replies')
         ->name('feedback.replies.ai.generate');
 
     /*
@@ -129,12 +142,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/radar-ia', [DashboardController::class, 'radar'])
         ->name('radar');
     Route::get('/radar-ia/export', [DashboardController::class, 'exportRadar'])
+        ->middleware('feature:ai_radar')
         ->name('radar.export');
     Route::post('/radar-ia/problems/{id}/create-task', [DashboardController::class, 'createTaskFromProblem'])
+        ->middleware('feature:ai_radar')
         ->name('radar.problems.createTask');
     Route::post('/radar-ia/problems/{id}/resolve', [DashboardController::class, 'resolveDetectedProblem'])
+        ->middleware('feature:ai_radar')
         ->name('radar.problems.resolve');
     Route::post('/radar-ia/problems/{id}/reopen', [DashboardController::class, 'reopenDetectedProblem'])
+        ->middleware('feature:ai_radar')
         ->name('radar.problems.reopen');
 
     /*
@@ -143,8 +160,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/tasks', [TaskController::class, 'index'])
         ->name('tasks.index');
     Route::post('/tasks', [TaskController::class, 'store'])
+        ->middleware('feature:tasks')
         ->name('tasks.store');
     Route::patch('/tasks/{task}/status', [TaskController::class, 'updateStatus'])
+        ->middleware('feature:tasks')
         ->name('tasks.updateStatus');
 
     /*
@@ -209,6 +228,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/settings/account', [SettingsController::class, 'destroy'])
         ->name('settings.account.destroy');
 
+    Route::patch('/settings/google-maps', [SettingsController::class, 'updateGoogleMaps'])
+        ->name('settings.google-maps.update');
+
     /*
     | Feedback requests (send / resend)
     */
@@ -258,6 +280,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/sync', [GoogleAuthController::class, 'syncReviews'])
             ->name('sync');
     });
+
+    /*
+    | Billing / Subscription
+    */
+    Route::get('/billing', [BillingController::class, 'index'])
+        ->name('billing.index');
+    Route::post('/billing/subscribe', [BillingController::class, 'subscribe'])
+        ->name('billing.subscribe');
+    Route::post('/billing/addon', [BillingController::class, 'buyAddon'])
+        ->name('billing.addon');
+    Route::post('/billing/portal', [BillingController::class, 'portal'])
+        ->name('billing.portal');
 
     /*
     | Brevo diagnostics

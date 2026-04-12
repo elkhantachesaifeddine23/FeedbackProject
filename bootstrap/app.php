@@ -20,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
         HandleInertiaRequests::class,
     ]);
+
+        $middleware->alias([
+            'feature' => \App\Http\Middleware\CheckFeature::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

@@ -23,6 +23,16 @@ class TaskController extends Controller
             abort(403);
         }
 
+        // Show gate page when feature not available
+        if (!$company->hasFeature('tasks')) {
+            return \Inertia\Inertia::render('Tasks/Index', [
+                'hasAccess'       => false,
+                'tasks'           => [],
+                'statusOptions'   => [],
+                'importanceOptions' => [],
+            ]);
+        }
+
         $tasks = Task::where('company_id', $company->id)
             ->latest()
             ->get()
@@ -40,6 +50,7 @@ class TaskController extends Controller
             });
 
         return Inertia::render('Tasks/Index', [
+            'hasAccess' => true,
             'tasks' => $tasks,
             'statusOptions' => [
                 ['value' => Task::STATUS_NOT_STARTED, 'label' => 'À faire'],

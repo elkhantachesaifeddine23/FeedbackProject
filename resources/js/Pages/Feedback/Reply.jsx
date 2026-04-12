@@ -3,6 +3,8 @@ import { useForm, Head, Link, usePage } from '@inertiajs/react';
 
 export default function Reply({ feedback, replyContext = {} }) {
     const { props } = usePage();
+    const billing = props.billing || {};
+    const canUseAI = billing.features?.ai_replies === true;
     const { data, setData, post, processing } = useForm({
         content: '',
     });
@@ -308,10 +310,22 @@ export default function Reply({ feedback, replyContext = {} }) {
                                     <button
                                         type="button"
                                         onClick={submitAI}
-                                        disabled={processing || aiLoading}
-                                        className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                        disabled={processing || aiLoading || !canUseAI}
+                                        title={!canUseAI ? 'Disponible avec le plan Basic ou Pro' : ''}
+                                        className={`flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 font-semibold rounded-xl shadow-lg transition-all ${
+                                            !canUseAI
+                                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                                                : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed'
+                                        }`}
                                     >
-                                        {aiLoading ? (
+                                        {!canUseAI ? (
+                                            <>
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                </svg>
+                                                Plan Basic requis
+                                            </>
+                                        ) : aiLoading ? (
                                             <>
                                                 <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Mail\FeedbackRequestMail;
 use App\Services\BrevoService;
 use App\Services\AIReplyService;
+use App\Services\QuotaService;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
@@ -38,25 +39,16 @@ class FeedbackRequestController extends Controller
 
         $company = Auth::user()->company;
 
-        // 🔒 Sécurité : empêcher plusieurs feedbacks actifs
-        $alreadySent = FeedbackRequest::where('customer_id', $data['customer_id'])
+        // 🔁 Réutiliser la demande active si elle existe déjà (renvoi manuel)
+        $existingRequest = FeedbackRequest::where('customer_id', $data['customer_id'])
             ->where('company_id', $company->id)
             ->where('channel', $data['channel'])
             ->whereIn('status', ['pending', 'sent'])
-            ->exists();
+            ->latest('id')
+            ->first();
 
-        if ($alreadySent) {
-            Log::warning('FeedbackRequest already exists', [
-                'customer_id' => $data['customer_id'],
-                'company_id' => $company->id,
-            ]);
-            return back()->withErrors([
-                'feedback' => 'Un feedback est déjà en attente pour ce client.'
-            ]);
-        }
-
-        // ✅ Création de la demande (ne pas marquer "sent" avant l'envoi réel)
-        $feedbackRequest = FeedbackRequest::create([
+        // ✅ Création de la demande si aucune active
+        $feedbackRequest = $existingRequest ?? FeedbackRequest::create([
             'company_id'  => $company->id,
             'customer_id' => $data['customer_id'],
             'channel'     => $data['channel'],
@@ -65,12 +57,48 @@ class FeedbackRequestController extends Controller
             'sent_at'     => null,
         ]);
 
+        if ($existingRequest) {
+            Log::info('FeedbackRequest manual resend on active request', [
+                'id' => $existingRequest->id,
+                'customer_id' => $data['customer_id'],
+                'company_id' => $company->id,
+            ]);
+        }
+
         // 🔹 Log création
         Log::info('FeedbackRequest created', [
             'id' => $feedbackRequest->id,
             'status' => $feedbackRequest->status,
             'token' => $feedbackRequest->token,
         ]);
+
+        /**
+         * ==========================
+         * QUOTA CHECK
+         * ==========================
+         */
+        $quotaService = app(QuotaService::class);
+
+        if ($data['channel'] === 'email' && !$quotaService->canSendEmail($company)) {
+            return back()->withErrors([
+                'quota' => 'Vous avez atteint la limite d\'emails de votre plan. Passez à un plan supérieur pour continuer.'
+            ]);
+        }
+
+        if ($data['channel'] === 'sms') {
+            if (!$company->hasFeature('sms')) {
+                return back()->withErrors([
+                    'plan' => 'L\'envoi SMS nécessite un plan Basic ou supérieur.'
+                ]);
+            }
+
+            $phone = $feedbackRequest->customer->phone ?? '';
+            if (!$quotaService->canSendSms($company, $phone)) {
+                return back()->withErrors([
+                    'quota' => 'Solde SMS insuffisant. Achetez un pack SMS ou passez à un plan supérieur.'
+                ]);
+            }
+        }
 
         /**
          * ==========================
@@ -88,7 +116,13 @@ class FeedbackRequestController extends Controller
                 $feedbackRequest->update([
                     'status' => 'sent',
                     'sent_at' => now(),
+                    'reminder_count' => 0,
+                    'last_reminder_at' => null,
+                    'next_reminder_at' => now()->addDay(),
                 ]);
+
+                // Track email usage
+                $quotaService->recordEmailSent($company);
 
                 Log::info('Email sent successfully (Sync)', [
                     'to' => $feedbackRequest->customer->email,
@@ -96,6 +130,7 @@ class FeedbackRequestController extends Controller
             } catch (\Throwable $e) {
                 $feedbackRequest->update([
                     'status' => 'failed',
+                    'next_reminder_at' => null,
                 ]);
 
                 Log::error('Email failed', [
@@ -146,14 +181,21 @@ class FeedbackRequestController extends Controller
                 $feedbackRequest->update([
                     'status' => 'sent',
                     'sent_at' => now(),
+                    'reminder_count' => 0,
+                    'last_reminder_at' => null,
+                    'next_reminder_at' => now()->addDay(),
                     'provider' => 'brevo',
                     'provider_message_id' => $sms['messageId'] ?? null,
                     'provider_response' => json_encode($sms),
                 ]);
 
+                // 📊 Deduct SMS units
+                $quotaService->deductSmsUnits($company, $feedbackRequest->customer->phone, $feedbackRequest->id);
+
             } catch (\Throwable $e) {
                 $feedbackRequest->update([
                     'status' => 'failed',
+                    'next_reminder_at' => null,
                 ]);
 
                 Log::error('Brevo SMS FAILED', [
@@ -209,22 +251,17 @@ class FeedbackRequestController extends Controller
         $errors = [];
 
         foreach ($data['customer_ids'] as $customerId) {
-            // 🔒 Vérifier si feedback déjà envoyé
-            $alreadySent = FeedbackRequest::where('customer_id', $customerId)
+            // 🔁 Réutiliser une demande active pour renvoi manuel
+            $existingRequest = FeedbackRequest::where('customer_id', $customerId)
                 ->where('company_id', $company->id)
                 ->where('channel', $data['channel'])
                 ->whereIn('status', ['pending', 'sent'])
-                ->exists();
-
-            if ($alreadySent) {
-                $skipCount++;
-                Log::info('Skipping customer - feedback already exists', ['customer_id' => $customerId]);
-                continue;
-            }
+                ->latest('id')
+                ->first();
 
             try {
                 // ✅ Création de la demande
-                $feedbackRequest = FeedbackRequest::create([
+                $feedbackRequest = $existingRequest ?? FeedbackRequest::create([
                     'company_id' => $company->id,
                     'customer_id' => $customerId,
                     'channel' => $data['channel'],
@@ -232,6 +269,13 @@ class FeedbackRequestController extends Controller
                     'status' => 'pending',
                     'sent_at' => null,
                 ]);
+
+                if ($existingRequest) {
+                    Log::info('Bulk manual resend on active request', [
+                        'feedback_request_id' => $existingRequest->id,
+                        'customer_id' => $customerId,
+                    ]);
+                }
 
                 // 📧 EMAIL
                 if ($data['channel'] === 'email') {
@@ -241,11 +285,15 @@ class FeedbackRequestController extends Controller
                         $feedbackRequest->update([
                             'status' => 'sent',
                             'sent_at' => now(),
+                            'reminder_count' => 0,
+                            'last_reminder_at' => null,
+                            'next_reminder_at' => now()->addDay(),
                         ]);
                         $successCount++;
                     } catch (\Throwable $e) {
                         $feedbackRequest->update([
                             'status' => 'failed',
+                            'next_reminder_at' => null,
                         ]);
 
                         $errorCount++;
@@ -275,6 +323,9 @@ class FeedbackRequestController extends Controller
                         $feedbackRequest->update([
                             'status' => 'sent',
                             'sent_at' => now(),
+                            'reminder_count' => 0,
+                            'last_reminder_at' => null,
+                            'next_reminder_at' => now()->addDay(),
                             'provider' => 'brevo',
                             'provider_message_id' => $sms['messageId'] ?? null,
                             'provider_response' => json_encode($sms),
@@ -284,6 +335,7 @@ class FeedbackRequestController extends Controller
                     } catch (\Throwable $e) {
                         $feedbackRequest->update([
                             'status' => 'failed',
+                            'next_reminder_at' => null,
                         ]);
 
                         $errorCount++;
@@ -312,7 +364,7 @@ class FeedbackRequestController extends Controller
 
         $message = "$successCount demandes envoyées avec succès";
         if ($skipCount > 0) {
-            $message .= ", $skipCount ignorées (déjà envoyées ou sans téléphone)";
+            $message .= ", $skipCount ignorées (sans téléphone)";
         }
         if ($errorCount > 0) {
             $message .= ", $errorCount erreurs";
@@ -379,135 +431,137 @@ class FeedbackRequestController extends Controller
     public function sendWithTemplate(Request $request)
     {
         $data = $request->validate([
-            'customer_ids' => 'required|array|min:1',
+            'customer_ids' => 'nullable|array|max:50',
             'customer_ids.*' => 'exists:customers,id',
+            'recipients' => 'nullable|array|max:50',
+            'recipients.*.name' => 'nullable|string|max:255',
+            'recipients.*.email' => 'nullable|email|max:255',
+            'recipients.*.phone' => 'nullable|string|max:30',
+            'consent_confirmed' => 'nullable|boolean',
             'channel' => 'required|in:sms,email,qr',
             'message' => 'required|string',
             'subject' => 'nullable|string',
         ]);
+
+        $customerIds = array_values($data['customer_ids'] ?? []);
+        $recipients = array_values($data['recipients'] ?? []);
+        $totalCount = count($customerIds) + count($recipients);
+
+        if (empty($customerIds) && empty($recipients)) {
+            return back()->withErrors([
+                'send' => 'Ajoutez au moins un client enregistré ou un contact rapide.',
+            ]);
+        }
+
+        if ($totalCount > 50) {
+            return back()->withErrors([
+                'send' => 'Maximum 50 contacts par envoi. Vous en avez sélectionné ' . $totalCount . '.',
+            ]);
+        }
+
+        if (! empty($recipients) && ! ($data['consent_confirmed'] ?? false)) {
+            return back()->withErrors([
+                'consent_confirmed' => 'Vous devez confirmer l’autorisation d’envoi pour les contacts rapides.',
+            ]);
+        }
 
         $company = Auth::user()->company;
         $successCount = 0;
         $errorCount = 0;
         $errors = [];
 
-        foreach ($data['customer_ids'] as $customerId) {
+        foreach ($customerIds as $customerId) {
             try {
                 $customer = \App\Models\Customer::findOrFail($customerId);
 
-                // Vérifier que le client appartient à l'entreprise
                 if ($customer->company_id !== $company->id) {
                     continue;
                 }
 
-                // Vérifier si un feedback est déjà en cours
-                $alreadySent = FeedbackRequest::where('customer_id', $customerId)
-                    ->where('company_id', $company->id)
-                    ->where('channel', $data['channel'])
-                    ->whereIn('status', ['pending', 'sent'])
-                    ->exists();
+                $feedbackRequest = $this->findOrCreateRequestForSavedCustomer(
+                    companyId: $company->id,
+                    customerId: (int) $customerId,
+                    channel: $data['channel']
+                );
 
-                if ($alreadySent) {
-                    continue;
-                }
+                $result = $this->sendTemplatedFeedback(
+                    feedbackRequest: $feedbackRequest,
+                    channel: $data['channel'],
+                    messageTemplate: $data['message'],
+                    subjectTemplate: $data['subject'] ?? null,
+                    displayName: $customer->name ?? 'Client',
+                    email: $customer->email,
+                    phone: $customer->phone,
+                    companyName: $company->name,
+                    request: $request
+                );
 
-                // Créer la demande
-                $feedbackRequest = FeedbackRequest::create([
-                    'company_id' => $company->id,
-                    'customer_id' => $customerId,
-                    'channel' => $data['channel'],
-                    'token' => \Illuminate\Support\Str::uuid(),
-                    'status' => 'pending',
-                    'sent_at' => null,
-                ]);
-
-                // Préparer les variables pour le template
-                $link = $this->buildFeedbackLink($feedbackRequest, $request);
-                $variables = [
-                    'Nom' => $customer->name ?? 'Client',
-                    'Nom de l\'entreprise' => $company->name,
-                    'Votre lien' => $link,
-                ];
-
-                // Remplacer les variables dans le message
-                $message = str_replace('{Votre lien}', '', $data['message']);
-                foreach ($variables as $key => $value) {
-                    $message = str_replace('{' . $key . '}', $value, $message);
-                }
-                $message = trim(preg_replace("/\n{3,}/", "\n\n", $message));
-
-                // Envoyer selon le canal
-                if ($data['channel'] === 'email') {
-                    if (empty($customer->email)) {
-                        $errorCount++;
-                        $errors[] = "Client {$customer->name}: pas d'email";
-                        continue;
-                    }
-
-                    try {
-                        // Remplacer les variables dans le sujet
-                        $subject = $data['subject'] ?? "Votre avis nous intéresse";
-                        foreach ($variables as $key => $value) {
-                            $subject = str_replace('{' . $key . '}', $value, $subject);
-                        }
-
-                        // Envoyer l'email en HTML avec bouton CTA
-                        \Illuminate\Support\Facades\Mail::send('emails.feedback-request-custom', [
-                            'customer' => $customer->name ?? 'Client',
-                            'company' => $company->name,
-                            'messageBody' => $message,
-                            'link' => $link,
-                        ], function ($mail) use ($customer, $subject) {
-                            $mail->to($customer->email)
-                                ->subject($subject);
-                        });
-
-                        $feedbackRequest->update([
-                            'status' => 'sent',
-                            'sent_at' => now(),
-                        ]);
-
-                        $successCount++;
-                    } catch (\Throwable $e) {
-                        $feedbackRequest->update(['status' => 'failed']);
-                        $errorCount++;
-                        $errors[] = "Email pour {$customer->email}: {$e->getMessage()}";
-                    }
-                } elseif ($data['channel'] === 'sms') {
-                    if (empty($customer->phone)) {
-                        $errorCount++;
-                        $errors[] = "Client {$customer->name}: pas de téléphone";
-                        continue;
-                    }
-
-                    try {
-                        $sms = app(BrevoService::class)->sendSms($customer->phone, $message);
-
-                        $feedbackRequest->update([
-                            'status' => 'sent',
-                            'sent_at' => now(),
-                            'provider' => 'brevo',
-                            'provider_message_id' => $sms['messageId'] ?? null,
-                            'provider_response' => json_encode($sms),
-                        ]);
-
-                        $successCount++;
-                    } catch (\Throwable $e) {
-                        $feedbackRequest->update(['status' => 'failed']);
-                        $errorCount++;
-                        $errors[] = "SMS pour {$customer->phone}: {$e->getMessage()}";
-                    }
-                } elseif ($data['channel'] === 'qr') {
-                    // Pour QR, on marque juste comme créé
-                    $feedbackRequest->update([
-                        'status' => 'sent',
-                        'sent_at' => now(),
-                    ]);
+                if ($result['ok']) {
                     $successCount++;
+                } else {
+                    $errorCount++;
+                    $errors[] = $result['error'];
                 }
             } catch (\Throwable $e) {
                 $errorCount++;
                 $errors[] = "Client ID {$customerId}: {$e->getMessage()}";
+            }
+        }
+
+        foreach ($recipients as $recipient) {
+            try {
+                $displayName = trim((string) ($recipient['name'] ?? '')) ?: 'Client';
+                $email = isset($recipient['email']) ? strtolower(trim((string) $recipient['email'])) : null;
+                $phone = isset($recipient['phone']) ? trim((string) $recipient['phone']) : null;
+
+                if ($data['channel'] === 'email' && empty($email)) {
+                    $errorCount++;
+                    $errors[] = "Contact {$displayName}: email manquant";
+                    continue;
+                }
+
+                if ($data['channel'] === 'sms' && empty($phone)) {
+                    $errorCount++;
+                    $errors[] = "Contact {$displayName}: numéro manquant";
+                    continue;
+                }
+
+                if ($data['channel'] === 'qr') {
+                    $errorCount++;
+                    $errors[] = "Contact {$displayName}: le canal QR est réservé aux clients enregistrés";
+                    continue;
+                }
+
+                $feedbackRequest = $this->findOrCreateRequestForQuickRecipient(
+                    companyId: $company->id,
+                    channel: $data['channel'],
+                    displayName: $displayName,
+                    email: $email,
+                    phone: $phone
+                );
+
+                $result = $this->sendTemplatedFeedback(
+                    feedbackRequest: $feedbackRequest,
+                    channel: $data['channel'],
+                    messageTemplate: $data['message'],
+                    subjectTemplate: $data['subject'] ?? null,
+                    displayName: $displayName,
+                    email: $email,
+                    phone: $phone,
+                    companyName: $company->name,
+                    request: $request,
+                    consentSource: 'quick_send'
+                );
+
+                if ($result['ok']) {
+                    $successCount++;
+                } else {
+                    $errorCount++;
+                    $errors[] = $result['error'];
+                }
+            } catch (\Throwable $e) {
+                $errorCount++;
+                $errors[] = 'Contact rapide: ' . $e->getMessage();
             }
         }
 
@@ -521,6 +575,225 @@ class FeedbackRequestController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    private function sendTemplatedFeedback(
+        FeedbackRequest $feedbackRequest,
+        string $channel,
+        string $messageTemplate,
+        ?string $subjectTemplate,
+        string $displayName,
+        ?string $email,
+        ?string $phone,
+        string $companyName,
+        Request $request,
+        ?string $consentSource = null
+    ): array {
+        $link = $this->buildFeedbackLink($feedbackRequest, $request);
+        $company = $feedbackRequest->company;
+        $quotaService = app(QuotaService::class);
+        $variables = [
+            'Nom' => $displayName,
+            'Nom de l\'entreprise' => $companyName,
+            'Votre lien' => $link,
+        ];
+
+        $message = str_replace('{Votre lien}', '', $messageTemplate);
+        foreach ($variables as $key => $value) {
+            $message = str_replace('{' . $key . '}', $value, $message);
+        }
+        $message = trim(preg_replace("/\n{3,}/", "\n\n", $message));
+
+        if ($channel === 'email') {
+            if (empty($email)) {
+                return ['ok' => false, 'error' => "Contact {$displayName}: email manquant"];
+            }
+
+            // Check email quota
+            if (!$quotaService->canSendEmail($company)) {
+                return ['ok' => false, 'error' => "Limite d'emails atteinte pour votre plan"];
+            }
+
+            try {
+                $subject = $subjectTemplate ?: 'Votre avis nous intéresse';
+                foreach ($variables as $key => $value) {
+                    $subject = str_replace('{' . $key . '}', $value, $subject);
+                }
+
+                \Illuminate\Support\Facades\Mail::send('emails.feedback-request-custom', [
+                    'customer' => $displayName,
+                    'company' => $companyName,
+                    'messageBody' => $message,
+                    'link' => $link,
+                ], function ($mail) use ($email, $subject, $companyName, $request) {
+                    $platformFromAddress = (string) config('mail.from.address');
+                    $platformFromName = (string) config('mail.from.name', 'Luminea');
+                    $fromName = $companyName ?: $platformFromName;
+
+                    $mail->to($email)
+                        ->subject($subject);
+
+                    if (!empty($platformFromAddress)) {
+                        $mail->from($platformFromAddress, $fromName);
+                    }
+
+                    $replyToEmail = $request->user()?->email;
+                    $replyToName = $companyName ?: ($request->user()?->name ?? $platformFromName);
+                    if (!empty($replyToEmail)) {
+                        $mail->replyTo($replyToEmail, $replyToName);
+                    }
+                });
+
+                $feedbackRequest->update([
+                    'status' => 'sent',
+                    'sent_at' => now(),
+                    'reminder_count' => 0,
+                    'last_reminder_at' => null,
+                    'next_reminder_at' => now()->addDay(),
+                    'recipient_name' => $displayName,
+                    'recipient_email' => $email,
+                    'recipient_phone' => $phone,
+                    'consent_at' => $consentSource ? now() : $feedbackRequest->consent_at,
+                    'consent_source' => $consentSource ?? $feedbackRequest->consent_source,
+                ]);
+
+                // Track email usage
+                $quotaService->recordEmailSent($company);
+
+                return ['ok' => true];
+            } catch (\Throwable $e) {
+                $feedbackRequest->update([
+                    'status' => 'failed',
+                    'next_reminder_at' => null,
+                ]);
+
+                return ['ok' => false, 'error' => "Email pour {$email}: {$e->getMessage()}"];
+            }
+        }
+
+        if ($channel === 'sms') {
+            if (empty($phone)) {
+                return ['ok' => false, 'error' => "Contact {$displayName}: numéro manquant"];
+            }
+
+            // Check SMS feature + quota
+            if (!$company->hasFeature('sms')) {
+                return ['ok' => false, 'error' => "L'envoi SMS nécessite un plan Basic ou supérieur"];
+            }
+            if (!$quotaService->canSendSms($company, $phone)) {
+                return ['ok' => false, 'error' => "Solde SMS insuffisant pour {$displayName}"];
+            }
+
+            try {
+                $sms = app(BrevoService::class)->sendSms($phone, $message);
+
+                $feedbackRequest->update([
+                    'status' => 'sent',
+                    'sent_at' => now(),
+                    'reminder_count' => 0,
+                    'last_reminder_at' => null,
+                    'next_reminder_at' => now()->addDay(),
+                    'recipient_name' => $displayName,
+                    'recipient_email' => $email,
+                    'recipient_phone' => $phone,
+                    'consent_at' => $consentSource ? now() : $feedbackRequest->consent_at,
+                    'consent_source' => $consentSource ?? $feedbackRequest->consent_source,
+                    'provider' => 'brevo',
+                    'provider_message_id' => $sms['messageId'] ?? null,
+                    'provider_response' => json_encode($sms),
+                ]);
+
+                // Deduct SMS units
+                $quotaService->deductSmsUnits($company, $phone, $feedbackRequest->id);
+
+                return ['ok' => true];
+            } catch (\Throwable $e) {
+                $feedbackRequest->update([
+                    'status' => 'failed',
+                    'next_reminder_at' => null,
+                ]);
+
+                return ['ok' => false, 'error' => "SMS pour {$phone}: {$e->getMessage()}"];
+            }
+        }
+
+        $feedbackRequest->update([
+            'status' => 'sent',
+            'sent_at' => now(),
+            'next_reminder_at' => null,
+        ]);
+
+        return ['ok' => true];
+    }
+
+    private function findOrCreateRequestForSavedCustomer(int $companyId, int $customerId, string $channel): FeedbackRequest
+    {
+        $existing = FeedbackRequest::where('customer_id', $customerId)
+            ->where('company_id', $companyId)
+            ->where('channel', $channel)
+            ->whereIn('status', ['pending', 'sent'])
+            ->latest('id')
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        return FeedbackRequest::create([
+            'company_id' => $companyId,
+            'customer_id' => $customerId,
+            'channel' => $channel,
+            'token' => (string) Str::uuid(),
+            'status' => 'pending',
+            'sent_at' => null,
+        ]);
+    }
+
+    private function findOrCreateRequestForQuickRecipient(
+        int $companyId,
+        string $channel,
+        string $displayName,
+        ?string $email,
+        ?string $phone
+    ): FeedbackRequest {
+        $hash = $this->computeRecipientHash($channel, $email, $phone);
+
+        $existing = FeedbackRequest::whereNull('customer_id')
+            ->where('company_id', $companyId)
+            ->where('channel', $channel)
+            ->where('recipient_hash', $hash)
+            ->whereIn('status', ['pending', 'sent'])
+            ->latest('id')
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        return FeedbackRequest::create([
+            'company_id' => $companyId,
+            'customer_id' => null,
+            'channel' => $channel,
+            'token' => (string) Str::uuid(),
+            'status' => 'pending',
+            'sent_at' => null,
+            'recipient_name' => $displayName,
+            'recipient_email' => $email,
+            'recipient_phone' => $phone,
+            'recipient_hash' => $hash,
+        ]);
+    }
+
+    private function computeRecipientHash(string $channel, ?string $email, ?string $phone): string
+    {
+        $normalizedEmail = strtolower(trim((string) $email));
+        $normalizedPhone = preg_replace('/\s+/', '', trim((string) $phone));
+
+        return hash('sha256', implode('|', [
+            $channel,
+            $normalizedEmail,
+            $normalizedPhone,
+        ]));
     }
 
     private function buildFeedbackLink(FeedbackRequest $feedbackRequest, ?Request $request = null): string

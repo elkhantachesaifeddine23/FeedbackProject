@@ -18,6 +18,9 @@ class FeedbackRequestFactory extends Factory
             'channel' => fake()->randomElement(['email', 'sms', 'qr']),
             'status' => 'sent',
             'sent_at' => now(),
+            'reminder_count' => 0,
+            'last_reminder_at' => null,
+            'next_reminder_at' => now()->addDay(),
         ];
     }
 }

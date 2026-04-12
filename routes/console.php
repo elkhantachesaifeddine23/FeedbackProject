@@ -2,6 +2,8 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
+use App\Services\ReminderService;
 use App\Services\GlobalRadarBuilder;
 use App\Services\RadarAnalysisService;
 
@@ -32,3 +34,14 @@ Artisan::command('radar:global {--days=30} {--force}', function (GlobalRadarBuil
     $this->line('Période: ' . $data['period']['from'] . ' → ' . $data['period']['to']);
     $this->line('Status: ' . ($analysis['status'] ?? 'unknown') . ' | Cached: ' . (($analysis['cached'] ?? false) ? 'yes' : 'no'));
 })->purpose('Générer le Radar IA global (admin plateforme)');
+
+Artisan::command('feedback:send-reminders {--limit=200}', function (ReminderService $reminderService) {
+    $limit = max(1, (int) $this->option('limit'));
+    $dispatched = $reminderService->dispatchDueReminders($limit);
+
+    $this->info("Rappels dispatchés: {$dispatched}");
+})->purpose('Dispatcher les rappels automatiques des demandes de feedback');
+
+Schedule::command('feedback:send-reminders --limit=200')
+    ->hourly()
+    ->withoutOverlapping();

@@ -126,7 +126,7 @@ export default function AdminLayout({ header, children }) {
                     {/* Logo */}
                     <div className="flex items-center gap-3 px-6 py-4 border-b border-luminea-500">
                         <Link href={route('admin.dashboard')} className="flex items-center justify-center w-full">
-                            <img src="/images/logo_Luminea2.png" alt="Luminea" className="h-20 w-auto" />
+                            <img src="/images/logo_Luminea2.png" alt="Luminea" className="h-24 w-auto" />
                         </Link>
                     </div>
 
